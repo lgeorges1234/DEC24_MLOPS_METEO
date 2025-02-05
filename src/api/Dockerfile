@@ -14,8 +14,10 @@ RUN apt-get update && apt-get install -y \
 # Liste des fichiers necessaires au lancement de l'api
 COPY requirements.txt .
 COPY user_api.py .
+COPY training_api.py
+COPY model_api.py
 COPY init_db.py .
-COPY ordredelancement.sh .
+COPY main.py
 COPY static/ ./static/
 
 # Installation des dépendances Python
@@ -26,5 +28,5 @@ RUN chmod +x ordredelancement.sh
 
 EXPOSE 8000
 
-# Définition du script de lancement
-CMD ["./ordredelancement.sh"]
+# Commande de lancement
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
