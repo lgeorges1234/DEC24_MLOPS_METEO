@@ -14,8 +14,10 @@ RUN apt-get update && apt-get install -y \
 # Liste des fichiers necessaires au lancement de l'api
 COPY requirements.txt .
 COPY user_api.py .
+COPY extract_api.py
 COPY training_api.py .
-COPY model_api.py .
+COPY evaluate_api.py .
+COPY predict_api.py .
 COPY init_db.py .
 COPY main.py .
 COPY static/ ./static/
@@ -24,7 +26,6 @@ COPY static/ ./static/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Gestion des authorisation d'execution du script de lancement
-# RUN chmod +x ordredelancement.sh
 
 EXPOSE 8000
 
