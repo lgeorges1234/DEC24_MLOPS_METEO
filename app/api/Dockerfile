@@ -13,14 +13,15 @@ RUN apt-get update && apt-get install -y \
 
 # Liste des fichiers necessaires au lancement de l'api
 COPY requirements.txt .
+COPY static/ ./static/
+COPY utils/ ./utils/
 COPY user_api.py .
-COPY extract_api.py
+COPY extract_api.py .
 COPY training_api.py .
 COPY evaluate_api.py .
 COPY predict_api.py .
 COPY init_db.py .
 COPY main.py .
-COPY static/ ./static/
 
 # Installation des dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt

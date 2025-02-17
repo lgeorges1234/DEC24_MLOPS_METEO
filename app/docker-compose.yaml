@@ -64,11 +64,20 @@ services:
       DB_SECRET_KEY: ${DB_SECRET_KEY}
     volumes:
       - type: bind
-        source: ./clean_data
-        target: /app/clean_data
+        source: ./app/api/clean_data
+        target: /app/api/clean_data
       - type: bind
-        source: ./raw_files
-        target: /app/raw_files
+        source: ./app/api/raw_data
+        target: /app/api/raw_data
+      - type: bind
+        source: ./app/api/prepare_data
+        target: /app/api/prepare_data
+      - type: bind
+        source: ./app/api/models
+        target: /app/api/models
+      - type: bind
+        source: ./app/api/static
+        target: /app/api/static
     ports:
       - "8000:8000"
     networks:
