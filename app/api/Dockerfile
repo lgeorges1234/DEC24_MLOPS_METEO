@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
+# Create necessary directories
+RUN mkdir -p /raw_data /prepared_data /models /metrics
+
 # Liste des fichiers necessaires au lancement de l'api
 COPY requirements.txt .
 COPY static/ ./static/

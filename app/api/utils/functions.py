@@ -18,9 +18,19 @@ logger = logging.getLogger(__name__)
 
 # Définition des chemins
 BASE_PATH = Path(__file__).parent.parent.parent
-RAW_DATA_PATH = BASE_PATH / "raw_data" / "weatherAUS.csv"
+INITIAL_DATA_PATH = BASE_PATH / "initial_dataset" / "weatherAUS.csv"
+TRAINING_RAW_DATA_PATH = BASE_PATH / "training_raw_data"
+PREDICTION_RAW_DATA_PATH = BASE_PATH / "prediction_raw_data"
 CLEAN_DATA_PATH = BASE_PATH / "prepared_data"
+METRICS_DATA_PATH = BASE_PATH / "metrics"
 MODEL_PATH = BASE_PATH / "models"
+
+# Create directories if they don't exist
+for path in [TRAINING_RAW_DATA_PATH, PREDICTION_RAW_DATA_PATH, CLEAN_DATA_PATH, METRICS_DATA_PATH, MODEL_PATH]:
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created directory: {path}")
+
 
 def outlier_thresholds(dataframe, column, q1 = 0.25, q3 = 0.75):
     """
@@ -41,20 +51,20 @@ def replace_with_thresholds(dataframe, column):
     dataframe.loc[(dataframe[column] < low_limit), column] = low_limit
     dataframe.loc[(dataframe[column] > up_limit), column] = up_limit
 
-def extract_and_prepare_df() :
+def extract_and_prepare_df():
     """
     Extraction et préparation des données météorologiques à partir du .csv
-
     """
     try:
         # Extraction
-        logger.info("Lecture du fichier: %s", RAW_DATA_PATH)
-        if not RAW_DATA_PATH.exists():
-            raise FileNotFoundError(f"Le fichier {RAW_DATA_PATH} n'a pas été trouvé")
+        logger.info("Lecture du fichier: %s", TRAINING_RAW_DATA_PATH / "weatherAUS.csv")
+        if not (TRAINING_RAW_DATA_PATH / "weatherAUS.csv").exists():
+            raise FileNotFoundError(f"Le fichier {TRAINING_RAW_DATA_PATH / 'weatherAUS.csv'} n'a pas été trouvé")
 
-        df = pd.read_csv(RAW_DATA_PATH)
+        df = pd.read_csv(TRAINING_RAW_DATA_PATH / "weatherAUS.csv")
         logger.info("Données chargées")
 
+        # Rest of the data preparation code remains the same
         # Conversion des variables catégorielles cibles en variables binaires
         df['RainTomorrow'] = df['RainTomorrow'].map({'Yes': 1, 'No': 0})
         df['RainToday'] = df['RainToday'].map({'Yes': 1, 'No': 0})
@@ -63,7 +73,6 @@ def extract_and_prepare_df() :
         categorical, continuous = [],[]
 
         for col in df.columns:
-
             if df[col].dtype == 'object':
                 categorical.append(col)
             else:
@@ -83,7 +92,7 @@ def extract_and_prepare_df() :
         # Suppression des lignes avec valeurs manquantes dans les variables cibles
         df = df.dropna(subset=['RainToday', 'RainTomorrow'])
 
-        # Modification des seuils des variables cibles (en excluant certaines variables)
+        # Modification des seuils des variables cibles
         columns_for_outliers = df.drop(columns=['RainTomorrow', 'RainToday', 'Date', 'Location']).columns
         for column in columns_for_outliers:
             replace_with_thresholds(df, column)
@@ -218,7 +227,7 @@ def evaluate_model():
         logger.info("Évaluation terminée")
 
         # Sauvegarde des métriques
-        with open(CLEAN_DATA_PATH / "metrics.json", "w") as f:
+        with open(METRICS_DATA_PATH / "metrics.json", "w") as f:
             json.dump(metrics_rfc, f, indent=4)
 
         return metrics_rfc
