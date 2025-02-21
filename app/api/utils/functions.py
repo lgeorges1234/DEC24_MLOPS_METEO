@@ -18,15 +18,14 @@ logger = logging.getLogger(__name__)
 
 # Définition des chemins
 BASE_PATH = Path(__file__).parent.parent.parent
-INITIAL_DATA_PATH = BASE_PATH / "initial_dataset" / "weatherAUS.csv"
-TRAINING_RAW_DATA_PATH = BASE_PATH / "training_raw_data"
-PREDICTION_RAW_DATA_PATH = BASE_PATH / "prediction_raw_data"
-CLEAN_DATA_PATH = BASE_PATH / "prepared_data"
-METRICS_DATA_PATH = BASE_PATH / "metrics"
-MODEL_PATH = BASE_PATH / "models"
+TRAINING_RAW_DATA_PATH = Path("/app/raw_data/training_raw_data")
+PREDICTION_RAW_DATA_PATH = Path("/app/raw_data/prediction_raw_data")
+CLEAN_DATA_PATH = Path("/app/api/data/prepared_data")
+METRICS_DATA_PATH = Path("/app/api/data/metrics")
+MODEL_PATH = Path("/app/api/data/models")
 
 # Create directories if they don't exist
-for path in [TRAINING_RAW_DATA_PATH, PREDICTION_RAW_DATA_PATH, CLEAN_DATA_PATH, METRICS_DATA_PATH, MODEL_PATH]:
+for path in [CLEAN_DATA_PATH, METRICS_DATA_PATH, MODEL_PATH]:
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Created directory: {path}")
@@ -57,11 +56,11 @@ def extract_and_prepare_df():
     """
     try:
         # Extraction
-        logger.info("Lecture du fichier: %s", TRAINING_RAW_DATA_PATH / "weatherAUS.csv")
-        if not (TRAINING_RAW_DATA_PATH / "weatherAUS.csv").exists():
-            raise FileNotFoundError(f"Le fichier {TRAINING_RAW_DATA_PATH / 'weatherAUS.csv'} n'a pas été trouvé")
+        logger.info("Lecture du fichier: %s", TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv")
+        if not (TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv").exists():
+            raise FileNotFoundError(f"Le fichier {TRAINING_RAW_DATA_PATH / 'weatherAUS_training.csv'} n'a pas été trouvé")
 
-        df = pd.read_csv(TRAINING_RAW_DATA_PATH / "weatherAUS.csv")
+        df = pd.read_csv(TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv")
         logger.info("Données chargées")
 
         # Rest of the data preparation code remains the same

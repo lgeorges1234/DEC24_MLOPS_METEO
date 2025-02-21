@@ -64,12 +64,12 @@ x-airflow-common: &airflow-common
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
-    - ./initial_dataset:/app/initial_dataset
-    - ./training_raw_data:/app/training_raw_data
-    - ./prediction_raw_data:/app/prediction_raw_data
-    - ./prepared_data:/app/prepared_data
-    - ./metrics:/app/metrics
-    - ./models:/app/models
+    - ./raw_data/initial_dataset:/app/raw_data/initial_dataset
+    - ./raw_data/training_raw_data:/app/raw_data/training_raw_data
+    - ./raw_data/prediction_raw_data:/app/raw_data/prediction_raw_data
+    - ./api/data/prepared_data:/app/api/data/prepared_data
+    - ./api/data/metrics:/app/api/data/metrics
+    - ./api/data/models:/app/api/data/models
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   depends_on:
     redis:
@@ -180,37 +180,38 @@ services:
       retries: 3
 
   app:
-    container_name: weather_app
-    build: 
-      context: ./api
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    environment:
-      # Database configuration
-      DB_HOST: db
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_SECRET_KEY: ${DB_SECRET_KEY}
-      # API and path configurations
-      API_API_URL: http://app:8000
-      INITIAL_DATA_PATH: /app/initial_dataset/weatherAUS.csv
-      TRAINING_RAW_DATA_PATH: /app/training_raw_data
-      PREDICTION_RAW_DATA_PATH: /app/prediction_raw_data
-      PREPARED_DATA_PATH: /app/prepared_data
-      METRICS_DATA_PATH: /app/metrics
-      MODEL_PATH: /app/models
-    volumes:
-      - ./initial_dataset:/app/initial_dataset
-      - ./training_raw_data:/app/training_raw_data
-      - ./prediction_raw_data:/app/prediction_raw_data
-      - ./prepared_data:/app/prepared_data
-      - ./metrics:/app/metrics
-      - ./models:/app/models
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+      container_name: weather_app
+      build: 
+        context: ./api
+      command: uvicorn main:app --host 0.0.0.0 --port 8000
+      # Remove the user directive to run as root
+      environment:
+        # Database configuration
+        DB_HOST: db
+        DB_NAME: ${DB_NAME}
+        DB_USER: ${DB_USER}
+        DB_PASSWORD: ${DB_PASSWORD}
+        DB_SECRET_KEY: ${DB_SECRET_KEY}
+        # API and path configurations
+        API_API_URL: http://app:8000
+        INITIAL_DATA_PATH: /app/raw_data/initial_dataset/weatherAUS.csv
+        TRAINING_RAW_DATA_PATH: /app/raw_data/training_raw_data
+        PREDICTION_RAW_DATA_PATH: /app/raw_data/prediction_raw_data
+        PREPARED_DATA_PATH: /app/api/data/prepared_data
+        METRICS_DATA_PATH: /app/api/data/metrics
+        MODEL_PATH: /app/api/data/models
+      volumes:
+        - ./raw_data/initial_dataset:/app/raw_data/initial_dataset
+        - ./raw_data/training_raw_data:/app/raw_data/training_raw_data
+        - ./raw_data/prediction_raw_data:/app/raw_data/prediction_raw_data
+        - ./api/data/prepared_data:/app/api/data/prepared_data
+        - ./api/data/metrics:/app/api/data/metrics
+        - ./api/data/models:/app/api/data/models
+      ports:
+        - "8000:8000"
+      depends_on:
+        db:
+          condition: service_healthy
 
 volumes:
   postgres-db-volume:

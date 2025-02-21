@@ -1,5 +1,27 @@
 app/
+├── raw_data/
+│   ├── initial_dataset/
+│   │   └── weatherAUS.csv        # Original complete dataset
+│   ├── training_raw_data/
+│   │   └── weatherAUS_training.csv        # 2/3 of the data for training
+│   └── prediction_raw_data/
+│       └── weatherAUS_prediction.csv        # 1/3 of the data for predictions
+│       └── daily_row_prediction.csv        # 1 line without target for daily prediction
+│
 ├── api/
+│   ├── data/
+│   │   ├── prepared_data/
+│   │   │   ├── meteo.csv
+│   │   │   ├── X_train.csv
+│   │   │   ├── y_train.csv
+│   │   │   ├── X_test.csv
+│   │   │   └── y_test.csv
+│   │   ├── metrics/
+│   │   │   └── metrics.json
+│   │   └── models/
+│   │       ├── rfc.joblib
+│   │       └── scaler.joblib
+│   │
 │   ├── static/
 │   ├── utils/
 │   │   └── functions.py
@@ -27,27 +49,5 @@ app/
 │   ├── logs/
 │   └── plugins/
 │
-├── initial_dataset/
-│   └── weatherAUS.csv        # Original complete dataset
-│
-├── training_raw_data/
-│   └── weatherAUS.csv        # 2/3 of the data for training
-│
-├── prediction_raw_data/
-│   └── weatherAUS.csv        # 1/3 of the data for predictions
-│
-├── prepared_data/
-│   ├── meteo.csv
-│   ├── X_train.csv
-│   ├── y_train.csv
-│   ├── X_test.csv
-│   └── y_test.csv
-│
-├── metrics/
-│   └── metrics.json
-│
-├── models/
-│   ├── rfc.joblib
-│   └── scaler.joblib
-│
+├── .env
 └── docker-compose.yml

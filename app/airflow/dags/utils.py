@@ -1,5 +1,5 @@
 import requests
-from app.airflow.dags.config import API_URL
+from config import API_URL
 
 def make_api_request(endpoint, timeout=300):
     """Generic function to make API requests"""

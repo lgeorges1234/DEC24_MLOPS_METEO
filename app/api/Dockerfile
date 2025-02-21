@@ -1,37 +1,28 @@
 FROM python:3.10-slim
 
-WORKDIR /api
-
-# Mise à jour de l'environnement python
-# Installation de PostgreSQL (pour communiquer avec notre de données qui sera créée sur PosgreSQL)
-# Suppression des fichiers temporaires pour réduire la taille de l'image
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Create necessary directories
-RUN mkdir -p /raw_data /prepared_data /models /metrics
+WORKDIR /app
 
-# Liste des fichiers necessaires au lancement de l'api
+# Copy application files
 COPY requirements.txt .
 COPY static/ ./static/
 COPY utils/ ./utils/
-COPY user_api.py .
-COPY extract_api.py .
-COPY training_api.py .
-COPY evaluate_api.py .
-COPY predict_api.py .
-COPY init_db.py .
-COPY main.py .
+COPY *.py ./
 
-# Installation des dépendances Python
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Gestion des authorisation d'execution du script de lancement
+# Create directories that the application needs
+RUN mkdir -p /app/api/data/prepared_data /app/api/data/metrics /app/api/data/models
 
 EXPOSE 8000
 
-# Commande de lancement
+# Run as root to ensure we have write permissions on mounted volumes
+# Note: This is not ideal for production but works for development
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

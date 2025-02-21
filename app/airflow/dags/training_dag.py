@@ -23,7 +23,7 @@ with DAG(
     
     check_raw_file = FileSensor(
         task_id='check_raw_data_file',
-        filepath=str(TRAINING_RAW_DATA_PATH / 'weatherAUS.csv'),
+        filepath=str(TRAINING_RAW_DATA_PATH / 'weatherAUS_training.csv'),
         fs_conn_id='fs_default',
         poke_interval=30,
         timeout=600,
