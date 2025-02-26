@@ -1,0 +1,2 @@
+Date,Location,MinTemp,MaxTemp,Rainfall,Evaporation,Sunshine,WindGustDir,WindGustSpeed,WindDir9am,WindDir3pm,WindSpeed9am,WindSpeed3pm,Humidity9am,Humidity3pm,Pressure9am,Pressure3pm,Cloud9am,Cloud3pm,Temp9am,Temp3pm,RainToday
+2014-10-10,Sale,7.4,24.3,0.0,,,WSW,44.0,NW,W,7.0,20.0,85.0,45.0,1015.5,1013.1,6.0,7.0,13.0,23.1,No
