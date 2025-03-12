@@ -7,14 +7,21 @@ import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from utils.functions import predict_weather
+import pandas as pd
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Définition du chemin des images
 BASE_PATH = Path(__file__).parent.parent
-IMAGE_PATH = BASE_PATH / "static" / "images"
+BASE_PATH_2 = Path(__file__).parent.parent.parent
 
+IMAGE_PATH = BASE_PATH / "static" / "images"
+CLEAN_DATA_PATH = Path("/app/api/data/prepared_data")
+csv_daily_cleaned = "daily_row_prediction_cleaned.csv"
+
+
+'''
 @router.get("/predict")
 async def predict(
     Location: int = Query(..., description="Location code"),
@@ -65,4 +72,35 @@ async def predict(
         }
     except Exception as e:
         logger.error("Error during prediction: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+'''
+
+@router.get("/predict")
+async def predict():
+    '''
+    Fonction de prediction
+    Vérification de la présence des données journalières
+    Prédiction en appelant la fonction predict_weather
+    '''
+    try:
+        if not Path(CLEAN_DATA_PATH / csv_daily_cleaned).exists():
+            raise HTTPException(status_code=404, detail="Aucun fichier journalier trouvé.")
+
+        df = pd.read_csv(CLEAN_DATA_PATH / csv_daily_cleaned)
+
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Le fichier CSV est vide.")
+
+        prediction, probability = predict_weather()
+
+        # Formater la réponse
+        response =  {
+                    "prediction": "Good" if prediction == 1 else "Bad",
+                    "probability": probability
+                    }
+
+
+        return {"status": "success", "results": response}
+
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
