@@ -23,12 +23,15 @@ PREDICTION_RAW_DATA_PATH = Path("/app/raw_data/prediction_raw_data")
 CLEAN_DATA_PATH = Path("/app/api/data/prepared_data")
 METRICS_DATA_PATH = Path("/app/api/data/metrics")
 MODEL_PATH = Path("/app/api/data/models")
+csv_file_training = "weatherAUS_training.csv"
+csv_file_prediction = "weatherAUS_prediction.csv"
+csv_file_daily_prediction = "daily_row_prediction.csv"
 
 # Create directories if they don't exist
 for path in [CLEAN_DATA_PATH, METRICS_DATA_PATH, MODEL_PATH]:
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created directory: {path}")
+        logger.info("Created directory: %s", path)
 
 
 def outlier_thresholds(dataframe, column, q1 = 0.25, q3 = 0.75):
@@ -40,7 +43,7 @@ def outlier_thresholds(dataframe, column, q1 = 0.25, q3 = 0.75):
     iqr = quartile3 - quartile1
     up_limit = quartile3 + 1.5 * iqr
     low_limit = quartile1 - 1.5 * iqr
-    return up_limit, low_limit 
+    return up_limit, low_limit
 
 def replace_with_thresholds(dataframe, column):
     """
@@ -50,17 +53,17 @@ def replace_with_thresholds(dataframe, column):
     dataframe.loc[(dataframe[column] < low_limit), column] = low_limit
     dataframe.loc[(dataframe[column] > up_limit), column] = up_limit
 
-def extract_and_prepare_df():
+def extract_and_prepare_df(path_raw_data, csv_file):
     """
     Extraction et préparation des données météorologiques à partir du .csv
     """
     try:
         # Extraction
-        logger.info("Lecture du fichier: %s", TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv")
-        if not (TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv").exists():
-            raise FileNotFoundError(f"Le fichier {TRAINING_RAW_DATA_PATH / 'weatherAUS_training.csv'} n'a pas été trouvé")
+        logger.info("Lecture du fichier: %s", path_raw_data / csv_file)
+        if not (path_raw_data / csv_file).exists():
+            raise FileNotFoundError(f"Le fichier {path_raw_data / csv_file} n'a pas été trouvé")
 
-        df = pd.read_csv(TRAINING_RAW_DATA_PATH / "weatherAUS_training.csv")
+        df = pd.read_csv(path_raw_data / csv_file)
         logger.info("Données chargées")
 
         # Rest of the data preparation code remains the same
@@ -102,11 +105,14 @@ def extract_and_prepare_df():
 
         logger.info("Préparation terminée. Dimensions finales: %s", df.shape)
 
+        # Définition du nom du fichier nettoyé
+        cleaned_file_name = f"{Path(csv_file).stem}_cleaned.csv"
+
         # Sauvegarde du fichier nettoyé
-        df.to_csv(CLEAN_DATA_PATH / "meteo.csv", index=False)
+        df.to_csv(CLEAN_DATA_PATH / cleaned_file_name, index=False)
         logger.info("Données nettoyées sauvegardées")
 
-        return df, lencoders, str(CLEAN_DATA_PATH / "meteo.csv")
+        return df, lencoders, str(CLEAN_DATA_PATH / cleaned_file_name)
 
     except Exception as e:
         logger.error("Erreur lors du traitement des données: %s", str(e))
@@ -119,7 +125,7 @@ def train_model():
     try:
         # Chargement des données
         logger.info("Chargement des données nettoyées")
-        data = pd.read_csv(CLEAN_DATA_PATH / "meteo.csv")
+        data = pd.read_csv(CLEAN_DATA_PATH / "weatherAUS_training_cleaned.csv")
 
         # Séparation de la variable cible des features
         X = data.drop(columns=["RainTomorrow"]).astype("float")
@@ -235,7 +241,7 @@ def evaluate_model():
         logger.error("Erreur lors de l'évaluation: %s", str(e))
         raise
 
-def predict_weather(data):
+def predict_weather():
     """
     Prédiction sur de nouvelles données.
     """
@@ -244,12 +250,16 @@ def predict_weather(data):
         model = joblib.load(MODEL_PATH / "rfc.joblib")
         scaler = joblib.load(MODEL_PATH / "scaler.joblib")
 
+
         # Conversion en DataFrame
-        input_df = pd.DataFrame([data])
-        
+        ##input_df = pd.DataFrame([data])
+
+        # Clean and prepare Data
+        input_df, _, _ = extract_and_prepare_df(PREDICTION_RAW_DATA_PATH,csv_file_daily_prediction)
+
         # Préparation des données
         input_scaled = scaler.transform(input_df)
-        
+
         # Prédiction
         prediction = model.predict(input_df)[0]
         probability = model.predict_proba(input_scaled)[0][1]
