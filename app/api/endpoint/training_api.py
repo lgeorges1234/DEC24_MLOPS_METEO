@@ -1,100 +1,92 @@
-# training_api.py
-'''
-API de l'entrainement des données
-Elle est pour automatiser l'entrainement du modèle avec de nouvelles données
-Avec intégration MLflow (approche de run unique)
-'''
+"""
+API pour la gestion de l'entraînement des modèles
+"""
 import logging
 import mlflow
-from fastapi import APIRouter, HTTPException, Query
-# from utils.functions import train_model_within_run
+from fastapi import APIRouter, HTTPException, Request, Query
+from typing import Optional
+from utils.mlflow_run_manager import start_workflow_run, complete_workflow_run
 from utils.mlflow_config import setup_mlflow
-from utils.mlflow_run_manager import continue_workflow_run
+from utils.functions import train_model
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# First, let's define a modified version of train_model that can work within an existing run
-def train_model_within_run():
-    """
-    Version of train_model that doesn't create its own MLflow run,
-    assuming it's called within an active run context
-    """
-    try:
-        # We assume we're already in an MLflow run context
-        mlflow.set_tag("current_step", "training")
-        
-        # 1. Préparation des données (avec logging MLflow)
-        logger.info("Chargement des données nettoyées")
-        
-        # Call the data loading and model training logic here
-        # (modified version of the train_model function without the MLflow run creation)
-        # ...
-        
-        # Let's simulate the training for brevity
-        import time
-        time.sleep(2)  # Simulate training time
-        
-        saved_files = {
-            "model": "/app/api/data/models/rfc.joblib",
-            "scaler": "/app/api/data/models/scaler.joblib"
-        }
-        
-        mlflow.log_params({
-            "n_estimators": 10,
-            "max_depth": 10,
-            "random_state": 42
-        })
-        
-        mlflow.log_metrics({
-            "training.train_accuracy": 0.95,
-            "training.test_accuracy": 0.92
-        })
-        
-        mlflow.set_tag("training_status", "COMPLETED")
-        
-        return saved_files
-    
-    except Exception as e:
-        logger.error(f"Erreur lors de l'entraînement: {str(e)}")
-        mlflow.set_tag("training_status", "FAILED")
-        mlflow.set_tag("training_error", str(e))
-        raise
-
 @router.get("/training")
-async def train(run_id: str = Query(None, description="ID of an existing MLflow workflow run")):
+async def train(run_id: Optional[str] = Query(None, description="ID of an existing MLflow run")):
     """
-    Endpoint pour l'entraînement du modèle.
+    Endpoint for model training.
     
-    Si run_id est fourni, cette étape sera enregistrée dans une exécution MLflow existante.
-    Sinon, une nouvelle exécution MLflow sera créée.
+    If run_id is provided, this step will be recorded in an existing MLflow run.
+    Otherwise, a new MLflow run will be created.
     """
     try:
-        if run_id:
-            # Continue an existing workflow run
-            with continue_workflow_run(run_id, "training"):
-                logger.info(f"Continuing workflow run {run_id} for training step")
-                
-                # Train the model within this run context
-                saved_files = train_model_within_run()
-                
-                return {
-                    "status": "success",
-                    "message": "Modèle entraîné avec succès (workflow run)",
-                    "run_id": run_id,
-                    "saved_files": saved_files
-                }
+        # Initialize response variables
+        status = "success"
+        message = "Model successfully trained"
+        saved_files = None
+        final_run_id = None
+        
+        # MLflow setup
+        setup_mlflow()
+        
+        # run_id management
+        if not run_id:
+            # Create a new run_id if none is provided
+            run_id = start_workflow_run("model_training")
+            logger.info(f"Creating a new workflow for training: {run_id}")
         else:
-            # No run_id provided, use the original function with its own MLflow run
-            from utils.functions import train_model
+            logger.info(f"Using existing workflow for training: {run_id}")
+        
+        # Check if there's already an active MLflow run
+        active_run = mlflow.active_run()
+        
+        # Start a new MLflow run or use the existing one
+        if active_run is None:
+            # No active run, start a new one with the run_id
+            with mlflow.start_run(run_id=run_id) as run:
+                logger.info(f"Starting a new MLflow run with run_id: {run_id}")
+                
+                # Add tags to identify this run
+                mlflow.set_tag("pipeline_type", "training")
+                mlflow.set_tag("stage", "full_pipeline")
+                mlflow.set_tag("endpoint", "training_api")
+                
+                # Execute the training
+                saved_files = train_model()
+                final_run_id = run_id
+        else:
+            # An execution is already active, check if it's the one we want
+            if active_run.info.run_id == run_id:
+                logger.info(f"Using existing active MLflow run: {run_id}")
+            else:
+                logger.warning(f"A different MLflow run is active ({active_run.info.run_id}). Using this one instead of {run_id}.")
+                run_id = active_run.info.run_id
             
+            # Add tags to the existing run
+            mlflow.set_tag("pipeline_type", "training")
+            mlflow.set_tag("stage", "full_pipeline")
+            mlflow.set_tag("endpoint", "training_api")
+            
+            # Execute the training
             saved_files = train_model()
+            final_run_id = run_id
+            message += " (existing run)"
+        
+        # Single return statement
+        return {
+            "status": status,
+            "message": message,
+            "run_id": final_run_id,
+            "saved_files": saved_files
+        }
             
-            return {
-                "status": "success",
-                "message": "Modèle entraîné avec succès (run unique)",
-                "saved_files": saved_files
-            }
     except Exception as e:
-        logger.error(f"Erreur lors de l'entraînement: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.error(f"Error during training: {str(e)}")
+        # If an exception occurs and we have a run_id, mark the workflow as failed
+        if run_id:
+            try:
+                complete_workflow_run(run_id, "FAILED", str(e))
+            except Exception as e2:
+                logger.error(f"Error while finalizing the workflow: {str(e2)}")
+        raise HTTPException(status_code=500, detail=str(e))

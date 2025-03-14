@@ -80,7 +80,8 @@ def process_daily_prediction_row(**context):
     # 2. Create a version without the target for prediction
     # Assuming 'RainTomorrow' is the target column
     if 'RainTomorrow' in prediction_df.columns:
-        prediction_df_no_target = prediction_df.drop(columns=['RainTomorrow'])
+        # prediction_df_no_target = prediction_df.drop(columns=['RainTomorrow'])
+        prediction_df_no_target = prediction_df
     else:
         print("Warning: 'RainTomorrow' column not found in dataset")
         prediction_df_no_target = prediction_df.copy()

@@ -169,188 +169,181 @@ def extract_and_prepare_df(path_raw_data, csv_file, log_to_mlflow=True):
 
 def train_model():
     """
-    Entraînement du RandomForestClassifier avec suivi MLflow
+    Entraînement du RandomForestClassifier avec suivi MLflow.
+    Cette version simplifiée suppose qu'une exécution MLflow est déjà active.
     """
     try:
-        # Configuration MLflow
-        setup_mlflow()
+        saved_files = {}
         
-        # Démarrer une exécution MLflow pour l'ensemble du pipeline
-        with mlflow.start_run(run_name="weather_prediction_pipeline") as run:
-            
-            mlflow.set_tag("pipeline_type", "training")
-            mlflow.set_tag("stage", "full_pipeline")
-            saved_files = {}
-            
-            # 1. Préparation des données (avec logging MLflow)
-            mlflow.set_tag("current_step", "data_preparation")
-            logger.info("Extraction et préparation des données")
-            
-            df, lencoders, cleaned_file = extract_and_prepare_df(
-                TRAINING_RAW_DATA_PATH, 
-                csv_file_training,
-                log_to_mlflow=True
-            )
-            
-            # 2. Chargement des données nettoyées
-            mlflow.set_tag("current_step", "data_loading")
-            logger.info("Chargement des données nettoyées")
-            
-            # Séparation de la variable cible des features
-            X = df.drop(columns=["RainTomorrow"]).astype("float")
-            y = df["RainTomorrow"]
+        # 1. Préparation des données (avec logging MLflow)
+        mlflow.set_tag("current_step", "data_preparation")
+        logger.info("Extraction et préparation des données")
+        
+        df, lencoders, cleaned_file = extract_and_prepare_df(
+            TRAINING_RAW_DATA_PATH, 
+            csv_file_training,
+            log_to_mlflow=True
+        )
+        
+        # 2. Chargement des données nettoyées
+        mlflow.set_tag("current_step", "data_loading")
+        logger.info("Chargement des données nettoyées")
+        
+        # Séparation de la variable cible des features
+        X = df.drop(columns=["RainTomorrow"]).astype("float")
+        y = df["RainTomorrow"]
 
-            # Sauvegarde du nom des colonnes
-            features_names = X.columns
-            mlflow.log_param("training.features", list(features_names))
+        # Sauvegarde du nom des colonnes
+        features_names = X.columns
+        mlflow.log_param("training.features", list(features_names))
 
-            # Paramètres pour la division des données
-            test_size = 0.2
-            random_state = 42
-            mlflow.log_param("training.test_size", test_size)
-            mlflow.log_param("training.random_state", random_state)
-            
-            # Division train/test
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state, stratify=y
-            )
-            
-            mlflow.log_metric("training.train_samples", len(X_train))
-            mlflow.log_metric("training.test_samples", len(X_test))
-            
-            # Distribution des classes 
-            train_class_dist = y_train.value_counts(normalize=True).to_dict()
-            test_class_dist = y_test.value_counts(normalize=True).to_dict()
-            
-            for label, freq in train_class_dist.items():
-                mlflow.log_metric(f"training.train_class_{int(label)}_freq", freq)
-            
-            for label, freq in test_class_dist.items():
-                mlflow.log_metric(f"training.test_class_{int(label)}_freq", freq)
+        # Paramètres pour la division des données
+        test_size = 0.2
+        random_state = 42
+        mlflow.log_param("training.test_size", test_size)
+        mlflow.log_param("training.random_state", random_state)
+        
+        # Division train/test
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+        
+        mlflow.log_metric("training.train_samples", len(X_train))
+        mlflow.log_metric("training.test_samples", len(X_test))
+        
+        # Distribution des classes 
+        train_class_dist = y_train.value_counts(normalize=True).to_dict()
+        test_class_dist = y_test.value_counts(normalize=True).to_dict()
+        
+        for label, freq in train_class_dist.items():
+            mlflow.log_metric(f"training.train_class_{int(label)}_freq", freq)
+        
+        for label, freq in test_class_dist.items():
+            mlflow.log_metric(f"training.test_class_{int(label)}_freq", freq)
 
-            # Standardisation des données
-            scaler = StandardScaler()
-            X_train_scaled = scaler.fit_transform(X_train)
-            
-            # Statistiques de scaling
-            for i, feature in enumerate(features_names):
-                mlflow.log_metric(f"training.scaler_mean_{feature}", scaler.mean_[i])
-                mlflow.log_metric(f"training.scaler_scale_{feature}", scaler.scale_[i])
+        # Standardisation des données
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        
+        # Statistiques de scaling
+        for i, feature in enumerate(features_names):
+            mlflow.log_metric(f"training.scaler_mean_{feature}", scaler.mean_[i])
+            mlflow.log_metric(f"training.scaler_scale_{feature}", scaler.scale_[i])
 
-            # Sauvegarde des données
-            pd.DataFrame(X_train_scaled, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_train.csv", index=False)
-            pd.Series(y_train).to_csv(CLEAN_DATA_PATH / "y_train.csv", index=False)
-            
-            saved_files["train_data"] = {
-                "X_train": str(CLEAN_DATA_PATH / "X_train.csv"),
-                "y_train": str(CLEAN_DATA_PATH / "y_train.csv")
+        # Sauvegarde des données
+        pd.DataFrame(X_train_scaled, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_train.csv", index=False)
+        pd.Series(y_train).to_csv(CLEAN_DATA_PATH / "y_train.csv", index=False)
+        
+        saved_files["train_data"] = {
+            "X_train": str(CLEAN_DATA_PATH / "X_train.csv"),
+            "y_train": str(CLEAN_DATA_PATH / "y_train.csv")
+        }
+
+        pd.DataFrame(X_test, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_test.csv", index=False)
+        pd.Series(y_test).to_csv(CLEAN_DATA_PATH / "y_test.csv", index=False)
+        
+        saved_files["test_data"] = {
+            "X_test": str(CLEAN_DATA_PATH / "X_test.csv"),
+            "y_test": str(CLEAN_DATA_PATH / "y_test.csv")
+        }
+        
+        # 3. Entraînement du modèle
+        mlflow.set_tag("current_step", "model_training")
+        logger.info("Entraînement du modèle")
+        
+        # Hyperparamètres
+        params = {"n_estimators": 10, "max_depth": 10, "random_state": 42}
+        mlflow.log_params(params)
+        
+        # Création et entraînement du modèle
+        rfc = RandomForestClassifier(**params)
+        rfc.fit(X_train_scaled, y_train)
+        
+        # Prédictions et évaluation
+        train_preds = rfc.predict(X_train_scaled)
+        X_test_scaled = scaler.transform(X_test)
+        test_preds = rfc.predict(X_test_scaled)
+        
+        # Métriques d'entraînement
+        train_accuracy = metrics.accuracy_score(y_train, train_preds)
+        train_precision = metrics.precision_score(y_train, train_preds)
+        train_recall = metrics.recall_score(y_train, train_preds)
+        train_f1 = metrics.f1_score(y_train, train_preds)
+        
+        mlflow.log_metric("training.train_accuracy", train_accuracy)
+        mlflow.log_metric("training.train_precision", train_precision)
+        mlflow.log_metric("training.train_recall", train_recall)
+        mlflow.log_metric("training.train_f1", train_f1)
+        
+        # Métriques de test
+        test_accuracy = metrics.accuracy_score(y_test, test_preds)
+        test_precision = metrics.precision_score(y_test, test_preds)
+        test_recall = metrics.recall_score(y_test, test_preds)
+        test_f1 = metrics.f1_score(y_test, test_preds)
+        
+        mlflow.log_metric("training.test_accuracy", test_accuracy)
+        mlflow.log_metric("training.test_precision", test_precision)
+        mlflow.log_metric("training.test_recall", test_recall)
+        mlflow.log_metric("training.test_f1", test_f1)
+        
+        # Importance des caractéristiques
+        for i, feature in enumerate(features_names):
+            importance = float(rfc.feature_importances_[i])
+            mlflow.log_metric(f"training.feature_importance_{feature}", importance)
+        
+        # Signature du modèle pour MLflow
+        signature = infer_signature(X_train_scaled, rfc.predict(X_train_scaled))
+        
+        # Enregistrement du modèle dans MLflow
+        model_info = mlflow.sklearn.log_model(
+            sk_model=rfc,
+            artifact_path="model",
+            signature=signature,
+            input_example=X_train_scaled[:5],
+            registered_model_name=MODEL_NAME
+        )
+        
+        # Sauvegarde locale (pour compatibilité)
+        model_path = MODEL_PATH / "rfc.joblib"
+        scaler_path = MODEL_PATH / "scaler.joblib"
+        
+        joblib.dump(rfc, model_path)
+        joblib.dump(scaler, scaler_path)
+        
+        mlflow.log_param("training.local_model_path", str(model_path))
+        mlflow.log_param("training.local_scaler_path", str(scaler_path))
+        
+        saved_files["model"] = str(model_path)
+        saved_files["scaler"] = str(scaler_path)
+        
+        # Sauvegarder les métriques dans un fichier JSON (pour compatibilité)
+        metrics_dict = {
+            "train": {
+                "accuracy": float(train_accuracy),
+                "precision": float(train_precision),
+                "recall": float(train_recall),
+                "f1": float(train_f1)
+            },
+            "test": {
+                "accuracy": float(test_accuracy),
+                "precision": float(test_precision),
+                "recall": float(test_recall),
+                "f1": float(test_f1)
             }
-
-            pd.DataFrame(X_test, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_test.csv", index=False)
-            pd.Series(y_test).to_csv(CLEAN_DATA_PATH / "y_test.csv", index=False)
-            
-            saved_files["test_data"] = {
-                "X_test": str(CLEAN_DATA_PATH / "X_test.csv"),
-                "y_test": str(CLEAN_DATA_PATH / "y_test.csv")
-            }
-            
-            # 3. Entraînement du modèle
-            mlflow.set_tag("current_step", "model_training")
-            logger.info("Entraînement du modèle")
-            
-            # Hyperparamètres
-            params = {"n_estimators": 10, "max_depth": 10, "random_state": 42}
-            mlflow.log_params(params)
-            
-            # Création et entraînement du modèle
-            rfc = RandomForestClassifier(**params)
-            rfc.fit(X_train_scaled, y_train)
-            
-            # Prédictions et évaluation
-            train_preds = rfc.predict(X_train_scaled)
-            X_test_scaled = scaler.transform(X_test)
-            test_preds = rfc.predict(X_test_scaled)
-            
-            # Métriques d'entraînement
-            train_accuracy = metrics.accuracy_score(y_train, train_preds)
-            train_precision = metrics.precision_score(y_train, train_preds)
-            train_recall = metrics.recall_score(y_train, train_preds)
-            train_f1 = metrics.f1_score(y_train, train_preds)
-            
-            mlflow.log_metric("training.train_accuracy", train_accuracy)
-            mlflow.log_metric("training.train_precision", train_precision)
-            mlflow.log_metric("training.train_recall", train_recall)
-            mlflow.log_metric("training.train_f1", train_f1)
-            
-            # Métriques de test
-            test_accuracy = metrics.accuracy_score(y_test, test_preds)
-            test_precision = metrics.precision_score(y_test, test_preds)
-            test_recall = metrics.recall_score(y_test, test_preds)
-            test_f1 = metrics.f1_score(y_test, test_preds)
-            
-            mlflow.log_metric("training.test_accuracy", test_accuracy)
-            mlflow.log_metric("training.test_precision", test_precision)
-            mlflow.log_metric("training.test_recall", test_recall)
-            mlflow.log_metric("training.test_f1", test_f1)
-            
-            # Importance des caractéristiques
-            for i, feature in enumerate(features_names):
-                importance = float(rfc.feature_importances_[i])
-                mlflow.log_metric(f"training.feature_importance_{feature}", importance)
-            
-            # Signature du modèle pour MLflow
-            signature = infer_signature(X_train_scaled, rfc.predict(X_train_scaled))
-            
-            # Enregistrement du modèle dans MLflow
-            model_info = mlflow.sklearn.log_model(
-                sk_model=rfc,
-                artifact_path="model",
-                signature=signature,
-                input_example=X_train_scaled[:5],
-                registered_model_name=MODEL_NAME
-            )
-            
-            # Sauvegarde locale (pour compatibilité)
-            model_path = MODEL_PATH / "rfc.joblib"
-            scaler_path = MODEL_PATH / "scaler.joblib"
-            
-            joblib.dump(rfc, model_path)
-            joblib.dump(scaler, scaler_path)
-            
-            mlflow.log_param("training.local_model_path", str(model_path))
-            mlflow.log_param("training.local_scaler_path", str(scaler_path))
-            
-            saved_files["model"] = str(model_path)
-            saved_files["scaler"] = str(scaler_path)
-            
-            # Sauvegarder les métriques dans un fichier JSON (pour compatibilité)
-            metrics_dict = {
-                "train": {
-                    "accuracy": float(train_accuracy),
-                    "precision": float(train_precision),
-                    "recall": float(train_recall),
-                    "f1": float(train_f1)
-                },
-                "test": {
-                    "accuracy": float(test_accuracy),
-                    "precision": float(test_precision),
-                    "recall": float(test_recall),
-                    "f1": float(test_f1)
-                }
-            }
-            
-            metrics_file = METRICS_DATA_PATH / "metrics.json"
-            with open(metrics_file, "w") as f:
-                json.dump(metrics_dict, f, indent=4)
-            
-            # Log le fichier de métriques comme artefact
-            mlflow.log_artifact(str(metrics_file))
-            
-            # Statut final
-            mlflow.set_tag("pipeline_status", "COMPLETED")
-            logger.info("Modèle entraîné et sauvegardé avec succès")
-            
-            return saved_files
+        }
+        
+        metrics_file = METRICS_DATA_PATH / "metrics.json"
+        with open(metrics_file, "w") as f:
+            json.dump(metrics_dict, f, indent=4)
+        
+        # Log le fichier de métriques comme artefact
+        mlflow.log_artifact(str(metrics_file))
+        
+        # Statut final
+        mlflow.set_tag("pipeline_status", "COMPLETED")
+        logger.info("Modèle entraîné et sauvegardé avec succès")
+        
+        return saved_files
 
     except Exception as e:
         logger.error("Erreur lors de l'entraînement: %s", str(e))
@@ -490,82 +483,99 @@ def evaluate_model():
 
 def predict_weather():
     """
-    Prédiction sur de nouvelles données avec suivi MLflow.
+    Prediction on new data with MLflow tracking.
+    Checks if there's already an active MLflow run before creating a new one.
     """
     try:
-        # Configuration MLflow
+        # MLflow setup
         setup_mlflow()
         
-        with mlflow.start_run(run_name="weather_prediction") as run:
-            mlflow.set_tag("pipeline_type", "prediction")
-            
-            # Tentative de chargement depuis MLflow
+        # Check if there's already an active MLflow run
+        active_run = mlflow.active_run()
+        create_new_run = active_run is None
+        
+        # Function to execute the prediction
+        def execute_prediction():
+            # Try to load the model from MLflow
             try:
-                # Rechercher le modèle le plus récent en Production ou Staging
+                # Find the most recent model in Production or Staging
                 client = mlflow.tracking.MlflowClient()
                 model_name = MODEL_NAME
                 
                 mlflow.log_param("prediction.model_name", model_name)
                 
-                # Chercher la version la plus récente en Production ou Staging
+                # Find the most recent version in Production or Staging
                 versions = client.search_model_versions(f"name='{model_name}'")
                 production_versions = [mv for mv in versions if mv.current_stage in ["Production", "Staging"]]
                 
                 if production_versions:
-                    # Trier par version décroissante
+                    # Sort by decreasing version
                     latest_prod = sorted(production_versions, key=lambda x: int(x.version), reverse=True)[0]
                     mlflow.set_tag("prediction.model_source", f"MLflow Registry - {latest_prod.current_stage}")
                     mlflow.set_tag("prediction.model_version", latest_prod.version)
                     
-                    # Charger le modèle depuis MLflow
+                    # Load the model from MLflow
                     model_uri = f"models:/{model_name}/{latest_prod.current_stage}"
                     model = mlflow.sklearn.load_model(model_uri)
                     
-                    # Charger le scaler séparément
+                    # Load the scaler separately
                     scaler = joblib.load(MODEL_PATH / "scaler.joblib")
                 else:
                     raise ValueError("No production or staging model found in registry")
             
             except Exception as e:
-                logger.warning(f"Échec du chargement depuis MLflow: {str(e)}. Utilisation des fichiers locaux.")
+                logger.warning(f"Failed to load from MLflow: {str(e)}. Using local files.")
                 mlflow.set_tag("prediction.model_source", "Local files")
                 mlflow.set_tag("prediction.load_from_mlflow_error", str(e))
                 
                 model = joblib.load(MODEL_PATH / "rfc.joblib")
                 scaler = joblib.load(MODEL_PATH / "scaler.joblib")
             
-            # Fichier d'entrée pour la prédiction
+            # Input file for prediction
             input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
             mlflow.log_param("prediction.input_file", str(input_file))
             
-            # Préparer les données
+            # Prepare the data
             input_df, _, _ = extract_and_prepare_df(
                 PREDICTION_RAW_DATA_PATH, 
                 csv_file_daily_prediction,
-                log_to_mlflow=False  # Pas besoin de dupliquer les logs de préparation ici
+                log_to_mlflow=False  # No need to duplicate preparation logs here
             )
             
             mlflow.log_param("prediction.input_shape", str(input_df.shape))
             
-            # Standardisation des données
+            # Standardize the data
             input_scaled = scaler.transform(input_df)
             
-            # Prédiction
+            # Prediction
             prediction = model.predict(input_df)[0]
             probability = model.predict_proba(input_scaled)[0][1]
             
-            # Log résultat
+            # Log result
             mlflow.log_param("prediction.result", int(prediction))
             mlflow.log_param("prediction.probability", float(probability))
             mlflow.log_param("prediction.result_label", "Yes" if prediction == 1 else "No")
             
             mlflow.set_tag("prediction_status", "COMPLETED")
-            logger.info("Prédiction effectuée avec succès")
+            logger.info("Prediction completed successfully")
             
             return prediction, float(probability)
+        
+        # Execute with the appropriate MLflow context
+        if create_new_run:
+            # If no run is active, create a new one
+            with mlflow.start_run(run_name="weather_prediction") as run:
+                mlflow.set_tag("pipeline_type", "prediction")
+                result = execute_prediction()
+        else:
+            # Otherwise, use the existing run
+            logger.info(f"Using existing MLflow run: {active_run.info.run_id}")
+            result = execute_prediction()
+            
+        return result
 
     except Exception as e:
-        logger.error("Erreur lors de la prédiction: %s", str(e))
+        logger.error(f"Error during prediction: {str(e)}")
         if mlflow.active_run():
             mlflow.set_tag("prediction_status", "FAILED")
             mlflow.set_tag("error_message", str(e))
