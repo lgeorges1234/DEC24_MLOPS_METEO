@@ -13,6 +13,7 @@ WORKDIR /app
 COPY requirements.txt .
 COPY static/ ./static/
 COPY utils/ ./utils/
+COPY endpoint/ ./endpoint/
 COPY *.py ./
 
 # Install Python dependencies

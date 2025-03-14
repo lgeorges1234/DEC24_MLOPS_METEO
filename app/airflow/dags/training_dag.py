@@ -4,6 +4,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime
+from tasks.mlflow_tasks import start_mlflow_workflow
 from tasks.model_tasks import collect_weather_data, train_model, evaluate_model
 from config import (
     default_args, TRAINING_RAW_DATA_PATH, 
@@ -18,7 +19,7 @@ with DAG(
     schedule_interval='0 0 * * MON',
     start_date=datetime(2025, 2, 19),
     catchup=False,
-    tags=['weather', 'training']
+    tags=['weather', 'training', 'mlflow']
 ) as dag:
     
     check_raw_file = FileSensor(
@@ -28,6 +29,12 @@ with DAG(
         poke_interval=30,
         timeout=600,
         mode='poke'
+    )
+
+    # Start MLflow workflow
+    start_workflow = PythonOperator(
+        task_id='start_mlflow_workflow',
+        python_callable=start_mlflow_workflow
     )
 
     with TaskGroup(group_id='data_collection') as data_collection:
