@@ -20,7 +20,8 @@ def start_mlflow_workflow(**context):
             raise ValueError("No run_id returned from workflow start")
         
         logging.info(f"Started MLflow workflow with run_id: {run_id}")
-        return run_id
+        return result
+    
     except Exception as e:
         logging.error(f"Failed to start MLflow workflow: {str(e)}")
         raise

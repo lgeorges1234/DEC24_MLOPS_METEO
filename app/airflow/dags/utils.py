@@ -11,7 +11,14 @@ def make_api_request(endpoint, context, timeout=300):
         run_id = None
 
         if ti:
-            run_id = ti.xcom_pull(task_ids='start_mlflow_workflow')
+            workflow_response = ti.xcom_pull(task_ids='start_mlflow_workflow')
+            
+            # Extract run_id from the response if it's a dictionary
+            if isinstance(workflow_response, dict):
+                run_id = workflow_response.get('run_id')
+            else:
+                # Fall back to using the value directly if it's not a dict
+                run_id = workflow_response
             
         # Build request parameters
         params = {"run_id": run_id} if run_id else {}

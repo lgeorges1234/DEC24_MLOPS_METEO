@@ -178,13 +178,22 @@ def train_model():
         # 1. Préparation des données (avec logging MLflow)
         mlflow.set_tag("current_step", "data_preparation")
         logger.info("Extraction et préparation des données")
-        
+
+            # Input file for prediction
+        input_file = TRAINING_RAW_DATA_PATH / csv_file_training
+        mlflow.log_param("training.input_file", str(input_file))
+
+        logger.info(f"training input file: {input_file}")
+
         df, lencoders, cleaned_file = extract_and_prepare_df(
             TRAINING_RAW_DATA_PATH, 
             csv_file_training,
             log_to_mlflow=True
         )
         
+        mlflow.log_param("training.input_shape", str(df.shape))
+
+
         # 2. Chargement des données nettoyées
         mlflow.set_tag("current_step", "data_loading")
         logger.info("Chargement des données nettoyées")
@@ -534,19 +543,25 @@ def predict_weather():
             # Input file for prediction
             input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
             mlflow.log_param("prediction.input_file", str(input_file))
-            
+            logger.info(f"prediction input file: {input_file}")
+
             # Prepare the data
             input_df, _, _ = extract_and_prepare_df(
                 PREDICTION_RAW_DATA_PATH, 
                 csv_file_daily_prediction,
-                log_to_mlflow=False  # No need to duplicate preparation logs here
+                log_to_mlflow=True  # No need to duplicate preparation logs here
             )
             
             mlflow.log_param("prediction.input_shape", str(input_df.shape))
+        
+
+            # Remove "RainTomorrow" column before prediction
+            if "RainTomorrow" in input_df.columns:
+                input_df = input_df.drop(columns=["RainTomorrow"])
             
             # Standardize the data
             input_scaled = scaler.transform(input_df)
-            
+
             # Prediction
             prediction = model.predict(input_df)[0]
             probability = model.predict_proba(input_scaled)[0][1]

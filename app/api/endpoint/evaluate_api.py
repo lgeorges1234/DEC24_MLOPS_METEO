@@ -22,10 +22,6 @@ def evaluate_model_within_run():
         # We assume we're already in an MLflow run context
         mlflow.set_tag("current_step", "evaluation")
         
-        # Call the evaluation logic here
-        # (modified version of the evaluate_model function without the MLflow run creation)
-        # ...
-        
         # Let's simulate the evaluation for brevity
         import time
         time.sleep(1)  # Simulate evaluation time
