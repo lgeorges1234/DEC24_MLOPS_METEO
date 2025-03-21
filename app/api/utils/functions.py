@@ -230,9 +230,16 @@ def train_model():
         
         # Log essential training metrics
         train_accuracy = metrics.accuracy_score(y_train, train_preds)
+        train_precision = metrics.precision_score(y_train, train_preds)
+        train_recall = metrics.recall_score(y_train, train_preds)
         train_f1 = metrics.f1_score(y_train, train_preds)
+        train_roc_auc = metrics.roc_auc_score(y_train, rfc.predict_proba(X_train_scaled)[:,1])
+
         mlflow.log_metric("train_accuracy", train_accuracy)
+        mlflow.log_metric("train_precision", train_precision)
+        mlflow.log_metric("train_recall", train_recall)
         mlflow.log_metric("train_f1", train_f1)
+        mlflow.log_metric("train_roc_auc", train_roc_auc)
         
         # Log essential testing metrics
         test_accuracy = metrics.accuracy_score(y_test, test_preds)
