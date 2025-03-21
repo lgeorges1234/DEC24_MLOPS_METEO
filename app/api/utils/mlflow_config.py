@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 # MLflow server URI - can be overridden with environment variable
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+
 # Default experiment name
 DEFAULT_EXPERIMENT_NAME = "weather_prediction"
 # Model registry name

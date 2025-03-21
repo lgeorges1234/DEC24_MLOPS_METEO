@@ -3,6 +3,9 @@ API for managing workflows that span multiple steps
 """
 import logging
 import requests
+from endpoint.evaluate_api import evaluate
+from endpoint.extract_api import extract
+from endpoint.training_api import train
 from fastapi import APIRouter, HTTPException, Request, Query
 from utils.mlflow_run_manager import start_workflow_run, continue_workflow_run, complete_workflow_run
 
@@ -57,51 +60,40 @@ async def run_full_workflow():
     """
     try:
         # Start a new workflow
-        run_id = start_workflow_run("full_weather_pipeline")
+        workflow_response = await start_workflow()
+        run_id = workflow_response["run_id"]
         
         try:
             # Step 1: Extract
             logger.info(f"Calling extract endpoint with run_id {run_id}")
-            extract_response = requests.get(
-                "http://localhost:8000/extract", 
-                params={"run_id": run_id}
-            )
-            extract_response.raise_for_status()
+            extract_response = await extract(run_id=run_id)
             
             # Step 2: Train
             logger.info(f"Calling training endpoint with run_id {run_id}")
-            train_response = requests.get(
-                "http://localhost:8000/training", 
-                params={"run_id": run_id}
-            )
-            train_response.raise_for_status()
+            train_response = await train(run_id=run_id)
             
             # Step 3: Evaluate
             logger.info(f"Calling evaluate endpoint with run_id {run_id}")
-            evaluate_response = requests.get(
-                "http://localhost:8000/evaluate", 
-                params={"run_id": run_id}
-            )
-            evaluate_response.raise_for_status()
+            evaluate_response = await evaluate(run_id=run_id)
             
             # Mark workflow as completed
-            complete_workflow_run(run_id, "COMPLETED")
+            await complete_workflow(run_id=run_id, status="COMPLETED")
             
             return {
                 "status": "success",
-                "message": "Workflow complet exécuté avec succès",
+                "message": "Complete workflow executed successfully",
                 "run_id": run_id,
-                "extract_result": extract_response.json(),
-                "train_result": train_response.json(),
-                "evaluate_result": evaluate_response.json()
+                "extract_result": extract_response,
+                "train_result": train_response,
+                "evaluate_result": evaluate_response
             }
         
         except Exception as e:
             # Mark workflow as failed and re-raise
             error_message = str(e)
-            complete_workflow_run(run_id, "FAILED", error_message)
+            await complete_workflow(run_id=run_id, status="FAILED", error_message=error_message)
             raise
     
     except Exception as e:
-        logger.error(f"Erreur lors de l'exécution du workflow complet: {str(e)}")
+        logger.error(f"Error during complete workflow execution: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

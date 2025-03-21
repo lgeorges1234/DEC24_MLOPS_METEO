@@ -13,7 +13,7 @@ from config import (
 
 
 with DAG(
-    'weather_training_dag',
+    '2_weather_training_dag',
     default_args=default_args,
     description='Weekly weather model training pipeline',
     schedule_interval='0 0 * * MON',
@@ -87,7 +87,7 @@ with DAG(
 
     trigger_prediction = TriggerDagRunOperator(
         task_id='trigger_prediction_dag',
-        trigger_dag_id='weather_prediction_dag',
+        trigger_dag_id='3_weather_prediction_dag',
         wait_for_completion=True
     )
 

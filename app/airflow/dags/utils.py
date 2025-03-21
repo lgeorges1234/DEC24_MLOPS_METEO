@@ -9,19 +9,22 @@ def make_api_request(endpoint, context, timeout=300):
         # Get run_id from XCom
         ti = context.get('ti')
         run_id = None
+        params = {}
 
-        if ti:
-            workflow_response = ti.xcom_pull(task_ids='start_mlflow_workflow')
+        if endpoint != 'predict':
+            if ti:
+                workflow_response = ti.xcom_pull(task_ids='start_mlflow_workflow')
+                
+                # Extract run_id from the response if it's a dictionary
+                if isinstance(workflow_response, dict):
+                    run_id = workflow_response.get('run_id')
+                else:
+                    # Fall back to using the value directly if it's not a dict
+                    run_id = workflow_response
             
-            # Extract run_id from the response if it's a dictionary
-            if isinstance(workflow_response, dict):
-                run_id = workflow_response.get('run_id')
-            else:
-                # Fall back to using the value directly if it's not a dict
-                run_id = workflow_response
-            
-        # Build request parameters
-        params = {"run_id": run_id} if run_id else {}
+        # Add run_id to parameters only if it exists
+        if run_id:
+            params["run_id"] = run_id
 
         # Make the request
         response = requests.get(f"{API_URL}/{endpoint}", params=params, timeout=timeout)

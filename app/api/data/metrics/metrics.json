@@ -1,14 +1,19 @@
 {
-    "train": {
-        "accuracy": 0.7861042117706438,
-        "precision": 0.5728118473514334,
-        "recall": 0.17882757394345325,
-        "f1": 0.27256301382238685
-    },
     "test": {
-        "accuracy": 0.7817563618976784,
-        "precision": 0.5425696594427245,
-        "recall": 0.16619250829777146,
-        "f1": 0.2544464609800363
+        "accuracy": 0.775912447537587,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.7037208608092768
+    },
+    "confusion_matrix": {
+        "true_positives": 0,
+        "false_positives": 0,
+        "true_negatives": 14605,
+        "false_negatives": 4218
+    },
+    "overfitting": {
+        "train_f1": 0.324072128115674,
+        "overfitting_ratio": 999.0
     }
 }

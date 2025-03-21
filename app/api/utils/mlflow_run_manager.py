@@ -4,7 +4,7 @@ Utility for managing MLflow runs across multiple API endpoints
 import mlflow
 import logging
 from datetime import datetime
-from utils.mlflow_config import setup_mlflow, DEFAULT_EXPERIMENT_NAME
+from utils.mlflow_config import setup_mlflow, DEFAULT_EXPERIMENT_NAME, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,15 @@ def continue_workflow_run(run_id, step_name):
     """
     Continues an existing workflow run for a specific step.
     Returns the run context that should be used in a 'with' statement.
+    Ensures any existing run is properly ended first.
     """
     # Make sure MLflow is configured
     setup_mlflow()
     
-    # End any active run (shouldn't be needed but as a safety)
-    if mlflow.active_run():
+    # End any active run to avoid nested runs
+    active_run = mlflow.active_run()
+    if active_run and active_run.info.run_id != run_id:
+        logger.info(f"Ending active run {active_run.info.run_id} to continue run {run_id}")
         mlflow.end_run()
     
     # Set the experiment to ensure we're in the right one
@@ -68,7 +71,12 @@ def continue_workflow_run(run_id, step_name):
 def complete_workflow_run(run_id, status="COMPLETED", error_message=None):
     """
     Marks a workflow run as completed or failed.
-    This should be called at the end of the workflow.
+    This should be called at the end of the workflow or when an error occurs.
+    
+    Args:
+        run_id (str): The MLflow run ID to update
+        status (str): Status to set (typically "COMPLETED" or "FAILED")
+        error_message (str, optional): Error message to log if status is "FAILED"
     """
     # Make sure MLflow is configured
     setup_mlflow()
@@ -83,3 +91,79 @@ def complete_workflow_run(run_id, status="COMPLETED", error_message=None):
             mlflow.set_tag("workflow_error", error_message)
     
     logger.info(f"Completed workflow run {run_id} with status: {status}")
+
+def get_deployment_run():
+    """
+    Get or create a deployment run for the current model version.
+    Returns the run_id and model_version.
+    """
+    try:
+        # Make sure MLflow is configured
+        setup_mlflow()
+        
+        # Find the current model in Production or Staging
+        client = mlflow.tracking.MlflowClient()
+        
+        # Get all versions of the model
+        versions = client.search_model_versions(f"name='{MODEL_NAME}'")
+
+        # Check if we got any versions
+        if not versions:
+            raise ValueError(f"No versions found for model {MODEL_NAME}")
+
+        logger.debug(f"Found {len(versions)} total versions for model {MODEL_NAME}")
+        for v in versions:
+            logger.debug(f"Version {v.version}: Stage: {v.current_stage}, Run ID: {v.run_id}")
+
+        # First try to find models in Production or Staging
+        production_versions = [mv for mv in versions if mv.current_stage in ["Production", "Staging"]]
+        
+        # If none found, use any available version (including "None" stage)
+        if not production_versions:
+            logger.warning("No Production or Staging models found. Using latest model from any stage.")
+            # Explicitly check that versions list is not empty before sorting
+            if versions:  
+                # Sort by version number to get the latest
+                latest_version = sorted(versions, key=lambda x: int(x.version), reverse=True)[0]
+                model_version = latest_version.version
+            else:
+                raise ValueError(f"No versions found for model {MODEL_NAME} after filtering")
+        else:
+            # Use Production/Staging model if available
+            latest_version = sorted(production_versions, key=lambda x: int(x.version), reverse=True)[0]
+            model_version = latest_version.version
+        
+        # Get the experiment ID
+        experiment = mlflow.get_experiment_by_name(DEFAULT_EXPERIMENT_NAME)
+        if experiment is None:
+            raise ValueError(f"Experiment {DEFAULT_EXPERIMENT_NAME} not found")
+        
+        # Check if we already have a deployment run for this model version
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string=f"tags.model_deployment = 'True' AND tags.model_version = '{model_version}'",
+            max_results=1
+        )
+        
+        if runs:
+            # Found an existing deployment run
+            deployment_run = runs[0]
+            logger.info(f"Found existing deployment run: {deployment_run.info.run_id} for model version {model_version}")
+            return deployment_run.info.run_id, model_version
+        else:
+            # Create a new deployment run
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_name = f"model_deployment_v{model_version}_{timestamp}"
+            
+            with mlflow.start_run(run_name=run_name) as run:
+                mlflow.set_tag("model_deployment", "True")
+                mlflow.set_tag("model_version", str(model_version))
+                mlflow.set_tag("deployment_start_date", timestamp)
+                mlflow.set_tag("pipeline_type", "deployment")
+                
+                logger.info(f"Created new deployment run: {run.info.run_id} for model version {model_version}")
+                return run.info.run_id, model_version
+    
+    except Exception as e:
+        logger.error(f"Error creating deployment run: {str(e)}")
+        raise

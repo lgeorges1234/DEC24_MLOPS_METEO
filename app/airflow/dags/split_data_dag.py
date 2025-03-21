@@ -8,7 +8,7 @@ from config import default_args, INITIAL_DATA_PATH
 
 
 with DAG(
-    'weather_initial_split_dag',
+    '1_weather_initial_split_dag',
     default_args=default_args,
     description='Initial dataset splitting pipeline',
     schedule_interval=None,  # Manual trigger only
@@ -34,7 +34,7 @@ with DAG(
     
     trigger_training = TriggerDagRunOperator(
         task_id='trigger_training_dag',
-        trigger_dag_id='weather_training_dag',
+        trigger_dag_id='2_weather_training_dag',
         wait_for_completion=True
     )
     
