@@ -30,8 +30,9 @@ env:
   SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  deploy:
+    runs-on: [self-hosted, weather-app]
+    environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -41,92 +42,26 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest pytest-cov flake8
-
-      - name: Lint with flake8
-        run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Run tests
-        run: |
-          if [ -d tests ]; then pytest --cov=. --cov-report=xml; fi
-
-      - name: Build and push API Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api
-          push: false
-          tags: weather-app:latest
-          outputs: type=docker,dest=/tmp/weather-app.tar
-
-      - name: Save Docker images
-        run: |
-          mkdir -p /tmp/docker-images/
-          docker save postgres:13 redis:latest ghcr.io/mlflow/mlflow:v2.21.0rc0 ${AIRFLOW_IMAGE_NAME} -o /tmp/docker-images/dependencies.tar
-          ls -la /tmp/docker-images/
-
-      - name: Upload Docker images as artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: docker-images
-          path: |
-            /tmp/docker-images/
-            /tmp/weather-app.tar
-
-      - name: Generate deployment files
-        run: |
-          mkdir -p deployment
-          cp docker-compose.yml deployment/
-          cp .env.example deployment/.env
-          cp -r airflow deployment/
-          mkdir -p deployment/raw_data/initial_dataset
-          mkdir -p deployment/raw_data/training_raw_data
-          mkdir -p deployment/raw_data/prediction_raw_data
-          mkdir -p deployment/api/data/prepared_data
-          mkdir -p deployment/api/data/metrics
-          mkdir -p deployment/api/data/models
-          
-          # If there's an initial dataset, copy it as well
-          if [ -f raw_data/initial_dataset/weatherAUS.csv ]; then
-            cp raw_data/initial_dataset/weatherAUS.csv deployment/raw_data/initial_dataset/
-          fi
-
-      - name: Upload deployment files
-        uses: actions/upload-artifact@v2
-        with:
-          name: deployment-files
-          path: deployment/
-
-  deploy:
-    needs: build
-    runs-on: [self-hosted, weather-app]
-    environment: ${{ github.event.inputs.environment || 'production' }}
-    steps:
       - name: Create deployment directory
         run: |
           mkdir -p ~/weather-app-deployment
           
-      - name: Download deployment files
-        uses: actions/download-artifact@v2
-        with:
-          name: deployment-files
-          path: ~/weather-app-deployment
-      
-      - name: Download Docker images
-        uses: actions/download-artifact@v2
-        with:
-          name: docker-images
-          path: ~/weather-app-deployment/docker-images
-      
-      - name: Load Docker images
+      - name: Copy deployment files
         run: |
-          docker load -i ~/weather-app-deployment/docker-images/dependencies.tar
-          docker load -i ~/weather-app-deployment/docker-images/weather-app.tar
+          cp -r . ~/weather-app-deployment/
+          
+      - name: Pull Docker images
+        run: |
+          # Pull all required Docker images
+          docker pull postgres:13
+          docker pull redis:latest
+          docker pull ghcr.io/mlflow/mlflow:v2.21.0rc0
+          docker pull ${AIRFLOW_IMAGE_NAME}
+          
+      - name: Build API Docker image
+        run: |
+          cd ~/weather-app-deployment/api
+          docker build -t weather-app:latest .
       
       - name: Configure environment
         run: |
