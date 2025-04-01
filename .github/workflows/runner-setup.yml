@@ -1,0 +1,88 @@
+name: Setup Self-Hosted Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_ip:
+        description: 'IP address of the Linux server'
+        required: true
+      ssh_user:
+        description: 'SSH username (typically ubuntu for EC2)'
+        required: true
+        default: 'ubuntu'
+      runner_name:
+        description: 'Name for the GitHub runner'
+        required: true
+        default: 'weather-app-runner'
+
+jobs:
+  setup-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create PEM key file
+        env:
+          SSH_PEM_KEY: ${{ secrets.SSH_PEM_KEY }}
+        run: |
+          # Create the .pem file from the secret
+          echo "$SSH_PEM_KEY" > data_enginering_machine.pem
+          chmod 400 data_enginering_machine.pem
+          
+      - name: Setup runner on remote server
+        env:
+          RUNNER_TOKEN: ${{ secrets.ACTIONS_RUNNER_TOKEN }}
+          SERVER_IP: ${{ github.event.inputs.server_ip }}
+          SSH_USER: ${{ github.event.inputs.ssh_user }}
+          RUNNER_NAME: ${{ github.event.inputs.runner_name }}
+        run: |
+          # Add server to known hosts to avoid confirmation prompt
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+          
+          # Connect to server using the .pem file and setup the runner
+          ssh -i data_enginering_machine.pem $SSH_USER@$SERVER_IP << EOF
+            # Install required packages
+            sudo apt-get update
+            sudo apt-get install -y curl jq
+            
+            # Install Docker if not already installed
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+            fi
+            
+            # Install Docker Compose if not already installed
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Installing Docker Compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+            fi
+            
+            # Create directory for the runner
+            mkdir -p ~/actions-runner
+            cd ~/actions-runner
+            
+            # Download the latest runner package
+            echo "Downloading runner package..."
+            LATEST_VERSION=\$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')
+            curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/download/v\${LATEST_VERSION}/actions-runner-linux-x64-\${LATEST_VERSION}.tar.gz
+            
+            # Extract the installer
+            tar xzf ./actions-runner-linux-x64.tar.gz
+            
+            # Configure the runner
+            echo "Configuring runner..."
+            ./config.sh --url https://github.com/${{ github.repository }} --token $RUNNER_TOKEN --name $RUNNER_NAME --unattended --labels weather-app,linux,self-hosted
+            
+            # Install and start the runner as a service
+            echo "Installing runner as a service..."
+            sudo ./svc.sh install
+            sudo ./svc.sh start
+            
+            echo "Runner installed and started!"
+          EOF
