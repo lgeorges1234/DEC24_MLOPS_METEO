@@ -424,27 +424,91 @@ def evaluate_model():
         
         mlflow.log_artifact(str(metrics_file))
         
-        # Model promotion based on performance
+        # Model promotion logic
         try:
             client = mlflow.tracking.MlflowClient()
-            latest_versions = client.search_model_versions(f"name='{MODEL_NAME}'")
             
-            if latest_versions:
-                # Sort by version
-                latest_version = sorted(latest_versions, key=lambda x: int(x.version), reverse=True)[0]
+            # Get the current model version
+            all_versions = client.search_model_versions(f"name='{MODEL_NAME}'")
+            latest_version = sorted(all_versions, key=lambda x: int(x.version), reverse=True)[0]
+            current_performance = test_f1  # Current model's F1 score
+            
+            # Find if there's a model in Production
+            production_models = [v for v in all_versions if v.current_stage == "Production"]
+            
+            if not production_models:
+                # No Production model yet - always promote the first model
+                client.transition_model_version_stage(
+                    name=MODEL_NAME,
+                    version=latest_version.version,
+                    stage="Production"
+                )
                 
-                # Promotion criteria
-                if test_f1 > 0.7:  # Example threshold
+                # Add appropriate tags based on performance
+                if current_performance > 0.7:  # Base quality threshold
+                    mlflow.set_tag("model_promotion", "First model promoted to Production (meets quality standards)")
+                else:
+                    mlflow.set_tag("model_promotion", "First model promoted to Production (below quality standards)")
+                    mlflow.set_tag("model_quality_warning", f"Model F1 score ({current_performance:.4f}) below threshold (0.7)")
+                    logger.warning(f"First Production model below quality threshold: F1={current_performance:.4f}")
+                
+                logger.info(f"Model version {latest_version.version} promoted to Production")
+            else:
+                # There's already a Production model - compare performance
+                prod_version = production_models[0]  # If multiple, just take one
+                prod_run = client.get_run(prod_version.run_id)
+                
+                if "test_f1" in prod_run.data.metrics:
+                    prod_performance = prod_run.data.metrics["test_f1"]
+                    
+                    if current_performance > prod_performance:
+                        # New model is better - archive old one and promote new one
+                        client.transition_model_version_stage(
+                            name=MODEL_NAME,
+                            version=prod_version.version,
+                            stage="Archived"
+                        )
+                        
+                        client.transition_model_version_stage(
+                            name=MODEL_NAME,
+                            version=latest_version.version,
+                            stage="Production"
+                        )
+                        
+                        improvement = current_performance - prod_performance
+                        promotion_msg = f"Promoted to Production (improved by {improvement:.4f})"
+                        
+                        # Add quality warning if below threshold despite being better
+                        if current_performance < 0.7:
+                            mlflow.set_tag("model_quality_warning", 
+                                          f"Model F1 score ({current_performance:.4f}) below threshold (0.7)")
+                            promotion_msg += " but below quality threshold"
+                            
+                        mlflow.set_tag("model_promotion", promotion_msg)
+                        logger.info(f"Model version {latest_version.version} {promotion_msg}")
+                    else:
+                        # New model is not better - archive it
+                        client.transition_model_version_stage(
+                            name=MODEL_NAME,
+                            version=latest_version.version,
+                            stage="Archived"
+                        )
+                        mlflow.set_tag("model_promotion", "Not promoted and archived (no improvement)")
+                else:
+                    logger.warning("Production model has no test_f1 metric")
+                    
+                    # If we can't find metrics for comparison, be conservative and keep new model
                     client.transition_model_version_stage(
                         name=MODEL_NAME,
                         version=latest_version.version,
-                        stage="Staging"
+                        stage="Production"
                     )
-                    mlflow.set_tag("model_promotion", "Promoted to Staging")
-                else:
-                    mlflow.set_tag("model_promotion", "Performance below threshold")
+                    mlflow.set_tag("model_promotion", 
+                                  "Promoted to Production (couldn't compare with previous model)")
+                    logger.warning(f"Promoted model {latest_version.version} without comparison")
+        
         except Exception as e:
-            logger.warning(f"Erreur lors de la promotion du modèle: {str(e)}")
+            logger.warning(f"Error during model promotion: {str(e)}")
             mlflow.set_tag("model_promotion_error", str(e))
         
         mlflow.set_tag("evaluation_status", "COMPLETED")
