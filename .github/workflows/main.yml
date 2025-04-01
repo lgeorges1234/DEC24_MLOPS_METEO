@@ -71,7 +71,7 @@ jobs:
           ls -la /tmp/docker-images/
 
       - name: Upload Docker images as artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: docker-images
           path: |
@@ -97,7 +97,7 @@ jobs:
           fi
 
       - name: Upload deployment files
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: deployment-files
           path: deployment/
@@ -112,13 +112,13 @@ jobs:
           mkdir -p ~/weather-app-deployment
           
       - name: Download deployment files
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v2
         with:
           name: deployment-files
           path: ~/weather-app-deployment
       
       - name: Download Docker images
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v2
         with:
           name: docker-images
           path: ~/weather-app-deployment/docker-images
