@@ -1,0 +1,215 @@
+name: Deploy Weather App Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+env:
+  AIRFLOW_IMAGE_NAME: apache/airflow:2.8.1
+  AIRFLOW_UID: 50000
+  AIRFLOW_GID: 50000
+  _AIRFLOW_WWW_USER_USERNAME: airflow
+  _AIRFLOW_WWW_USER_PASSWORD: ${{ secrets.AIRFLOW_PASSWORD }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  DB_SECRET_KEY: ${{ secrets.DB_SECRET_KEY }}
+  SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-cov flake8
+
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then pytest --cov=. --cov-report=xml; fi
+
+      - name: Build and push API Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: false
+          tags: weather-app:latest
+          outputs: type=docker,dest=/tmp/weather-app.tar
+
+      - name: Save Docker images
+        run: |
+          mkdir -p /tmp/docker-images/
+          docker save postgres:13 redis:latest ghcr.io/mlflow/mlflow:v2.21.0rc0 ${AIRFLOW_IMAGE_NAME} -o /tmp/docker-images/dependencies.tar
+          ls -la /tmp/docker-images/
+
+      - name: Upload Docker images as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-images
+          path: |
+            /tmp/docker-images/
+            /tmp/weather-app.tar
+
+      - name: Generate deployment files
+        run: |
+          mkdir -p deployment
+          cp docker-compose.yml deployment/
+          cp .env.example deployment/.env
+          cp -r airflow deployment/
+          mkdir -p deployment/raw_data/initial_dataset
+          mkdir -p deployment/raw_data/training_raw_data
+          mkdir -p deployment/raw_data/prediction_raw_data
+          mkdir -p deployment/api/data/prepared_data
+          mkdir -p deployment/api/data/metrics
+          mkdir -p deployment/api/data/models
+          
+          # If there's an initial dataset, copy it as well
+          if [ -f raw_data/initial_dataset/weatherAUS.csv ]; then
+            cp raw_data/initial_dataset/weatherAUS.csv deployment/raw_data/initial_dataset/
+          fi
+
+      - name: Upload deployment files
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-files
+          path: deployment/
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Create deployment directory
+        run: |
+          mkdir -p ~/weather-app-deployment
+          
+      - name: Download deployment files
+        uses: actions/download-artifact@v3
+        with:
+          name: deployment-files
+          path: ~/weather-app-deployment
+      
+      - name: Download Docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-images
+          path: ~/weather-app-deployment/docker-images
+      
+      - name: Load Docker images
+        run: |
+          docker load -i ~/weather-app-deployment/docker-images/dependencies.tar
+          docker load -i ~/weather-app-deployment/docker-images/weather-app.tar
+      
+      - name: Configure environment
+        run: |
+          cd ~/weather-app-deployment
+          
+          # Create .env file from secrets
+          cat > .env << EOF
+          AIRFLOW_UID=${AIRFLOW_UID}
+          AIRFLOW_GID=${AIRFLOW_GID}
+          _AIRFLOW_WWW_USER_USERNAME=${_AIRFLOW_WWW_USER_USERNAME}
+          _AIRFLOW_WWW_USER_PASSWORD=${_AIRFLOW_WWW_USER_PASSWORD}
+          DB_NAME=${DB_NAME}
+          DB_USER=${DB_USER}
+          DB_PASSWORD=${DB_PASSWORD}
+          DB_SECRET_KEY=${DB_SECRET_KEY}
+          EOF
+          
+          # Update SMTP password in docker-compose
+          sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" docker-compose.yml
+      
+      - name: Start services
+        run: |
+          cd ~/weather-app-deployment
+          docker-compose down
+          docker-compose up -d
+      
+      - name: Initialize data directories
+        run: |
+          cd ~/weather-app-deployment
+          
+          # Make sure directories have correct permissions
+          sudo chown -R ${AIRFLOW_UID}:${AIRFLOW_GID} airflow
+          sudo chown -R ${AIRFLOW_UID}:${AIRFLOW_GID} raw_data
+          sudo chown -R ${AIRFLOW_UID}:${AIRFLOW_GID} api
+      
+      - name: Verify deployment
+        run: |
+          cd ~/weather-app-deployment
+          
+          # Wait for services to be fully up
+          echo "Waiting for services to start up..."
+          sleep 30
+          
+          # Check if Airflow is running
+          if curl -s http://localhost:8080/health > /dev/null; then
+            echo "Airflow is running"
+          else
+            echo "Airflow is not running"
+            exit 1
+          fi
+          
+          # Check if MLflow is running
+          if curl -s http://localhost:5000/api/2.0/mlflow/experiments/list > /dev/null; then
+            echo "MLflow is running"
+          else
+            echo "MLflow is not running"
+            exit 1
+          fi
+          
+          # Check if the API is running
+          if curl -s http://localhost:8000/docs > /dev/null; then
+            echo "Weather API is running"
+          else
+            echo "Weather API is not running"
+            exit 1
+          fi
+          
+          echo "Deployment successful!"
+
+  trigger-initial-pipeline:
+    needs: deploy
+    runs-on: self-hosted
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    steps:
+      - name: Trigger initial data split and training
+        run: |
+          # Wait a bit more for Airflow to be fully initialized
+          sleep 60
+          
+          # Trigger the data loading DAG if it exists
+          curl -X POST http://localhost:8080/api/v1/dags/1_weather_data_loading_dag/dagRuns \
+            -H "Content-Type: application/json" \
+            -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" \
+            -d '{"conf": {}}'
+          
+          echo "Initial pipeline triggered"
