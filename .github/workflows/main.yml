@@ -42,13 +42,39 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Create deployment directory
+      - name: Create deployment directory and copy files
         run: |
+          # Create deployment directory
           mkdir -p ~/weather-app-deployment
           
-      - name: Copy deployment files
-        run: |
-          cp -r . ~/weather-app-deployment/
+          # Create all required subdirectories
+          mkdir -p ~/weather-app-deployment/airflow/{dags,logs,plugins}
+          mkdir -p ~/weather-app-deployment/raw_data/{initial_dataset,training_raw_data,prediction_raw_data}
+          mkdir -p ~/weather-app-deployment/api/data/{prepared_data,metrics,models}
+          
+          # Copy files from repository
+          cp docker-compose.yml ~/weather-app-deployment/
+          
+          # Debug - list current directory contents
+          echo "Current working directory content:"
+          ls -la
+          
+          # Copy API directory if it exists
+          if [ -d "./api" ]; then
+            cp -r ./api ~/weather-app-deployment/
+            echo "API directory copied"
+          else
+            echo "WARNING: API directory not found in repository root"
+            find . -name "api" -type d
+          fi
+          
+          # Copy airflow directory if it exists
+          if [ -d "./airflow" ]; then
+            cp -r ./airflow ~/weather-app-deployment/
+            echo "Airflow directory copied"
+          else
+            echo "WARNING: Airflow directory not found"
+          fi
           
       - name: Pull Docker images
         run: |
@@ -60,15 +86,27 @@ jobs:
           
       - name: Build API Docker image
         run: |
-          cd ~/weather-app-deployment/api
-          docker build -t weather-app:latest .
+          # First check if the API directory exists
+          if [ -d "~/weather-app-deployment/api" ]; then
+            cd ~/weather-app-deployment/api
+            docker build -t weather-app:latest .
+          elif [ -d "./api" ]; then
+            # Build directly from the checked out code
+            cd ./api
+            docker build -t weather-app:latest .
+            # Then make sure it's copied to the deployment directory
+            mkdir -p ~/weather-app-deployment/api
+            cp -r . ~/weather-app-deployment/api/
+          else
+            echo "ERROR: API directory not found in either location"
+            find . -type d -name "api" | xargs ls -la
+            exit 1
+          fi
       
       - name: Configure environment
         run: |
-          cd ~/weather-app-deployment
-          
           # Create .env file from secrets
-          cat > .env << EOF
+          cat > ~/weather-app-deployment/.env << EOF
           AIRFLOW_UID=${AIRFLOW_UID}
           AIRFLOW_GID=${AIRFLOW_GID}
           _AIRFLOW_WWW_USER_USERNAME=${_AIRFLOW_WWW_USER_USERNAME}
@@ -79,13 +117,39 @@ jobs:
           DB_SECRET_KEY=${DB_SECRET_KEY}
           EOF
           
-          # Update SMTP password in docker-compose
-          sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" docker-compose.yml
+          # Check if docker-compose exists
+          if [ -f "~/weather-app-deployment/docker-compose.yml" ]; then
+            # Update SMTP password in docker-compose
+            sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" ~/weather-app-deployment/docker-compose.yml
+          elif [ -f "./docker-compose.yml" ]; then
+            # Copy and update docker-compose.yml
+            cp ./docker-compose.yml ~/weather-app-deployment/
+            sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" ~/weather-app-deployment/docker-compose.yml
+          else
+            echo "ERROR: docker-compose.yml not found"
+            find . -name "docker-compose.yml"
+            exit 1
+          fi
+          
+          # Debug - list deployment directory
+          echo "Deployment directory content:"
+          ls -la ~/weather-app-deployment/
       
       - name: Start services
         run: |
           cd ~/weather-app-deployment
-          docker-compose down
+          
+          # Check if docker-compose.yml exists
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "ERROR: docker-compose.yml not found in deployment directory"
+            ls -la
+            exit 1
+          fi
+          
+          # Stop any running containers
+          docker-compose down || true
+          
+          # Start services in detached mode
           docker-compose up -d
       
       - name: Initialize data directories
