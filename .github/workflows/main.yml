@@ -48,7 +48,7 @@ jobs:
           
       - name: Copy deployment files
         run: |
-          cp -r . ~/weather-app-deployment/
+          rsync -av --exclude='.git' ./ ~/weather-app-deployment/
           
       - name: Pull Docker images
         run: |
