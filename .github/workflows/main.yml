@@ -48,7 +48,7 @@ jobs:
           
       - name: Copy deployment files
         run: |
-          rsync -av --exclude='.git' ./app/ ~/weather-app-deployment/
+          rsync -av --exclude='.git' . ~/weather-app-deployment/
           
       - name: Pull Docker images
         run: |
@@ -60,7 +60,7 @@ jobs:
           
       - name: Build API Docker image
         run: |
-          cd ~/weather-app-deployment/api
+          cd ~/weather-app-deployment/app/api
           docker build -t weather-app:latest .
       
       - name: Configure environment
