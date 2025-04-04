@@ -80,7 +80,7 @@ jobs:
           EOF
           
           # Update SMTP password in docker-compose
-          sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" docker-compose.yml
+          # sed -i "s/AIRFLOW__SMTP__SMTP_PASSWORD: \"cfsrvkongsobheta\"/AIRFLOW__SMTP__SMTP_PASSWORD: \"${SMTP_PASSWORD}\"/" docker-compose.yml
       
       - name: Start services
         run: |
