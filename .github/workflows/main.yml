@@ -101,35 +101,35 @@ jobs:
         run: |
           cd ~/weather-app-deployment
           
-          # Wait for services to be fully up
-          echo "Waiting for services to start up..."
-          sleep 1600
+          # Define function to check service readiness
+          check_service_ready() {
+            local service_name=$1
+            local url=$2
+            local max_attempts=$3
+            local wait_seconds=$4
+            
+            echo "Checking if $service_name is ready..."
+            
+            for ((i=1; i<=$max_attempts; i++)); do
+              if curl -s "$url" > /dev/null; then
+                echo "$service_name is ready!"
+                return 0
+              fi
+              
+              echo "Attempt $i/$max_attempts: $service_name not ready yet, waiting ${wait_seconds}s..."
+              sleep $wait_seconds
+            done
+            
+            echo "$service_name failed to start after $(($max_attempts * $wait_seconds)) seconds"
+            return 1
+          }
           
-          # Check if Airflow is running
-          if curl -s http://localhost:8080/health > /dev/null; then
-            echo "Airflow is running"
-          else
-            echo "Airflow is not running"
-            exit 1
-          fi
+          # Maximum 30 attempts with 10 seconds wait = up to 5 minutes per service
+          check_service_ready "Airflow" "http://localhost:8080/health" 30 10 || exit 1
+          check_service_ready "MLflow" "http://localhost:5000/api/2.0/mlflow/experiments/list" 30 10 || exit 1
+          check_service_ready "Weather API" "http://localhost:8000/docs" 30 10 || exit 1
           
-          # Check if MLflow is running
-          if curl -s http://localhost:5000/api/2.0/mlflow/experiments/list > /dev/null; then
-            echo "MLflow is running"
-          else
-            echo "MLflow is not running"
-            exit 1
-          fi
-          
-          # Check if the API is running
-          if curl -s http://localhost:8000/docs > /dev/null; then
-            echo "Weather API is running"
-          else
-            echo "Weather API is not running"
-            exit 1
-          fi
-          
-          echo "Deployment successful!"
+          echo "All services are up and running!"
 
   trigger-initial-pipeline:
     needs: deploy
