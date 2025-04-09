@@ -134,7 +134,6 @@ jobs:
   trigger-initial-pipeline:
     needs: deploy
     runs-on: [self-hosted, weather-app]
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
     steps:
       - name: Trigger initial data split and training
         run: |
