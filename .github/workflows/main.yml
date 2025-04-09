@@ -103,7 +103,7 @@ jobs:
           
           # Wait for services to be fully up
           echo "Waiting for services to start up..."
-          sleep 30
+          sleep 90
           
           # Check if Airflow is running
           if curl -s http://localhost:8080/health > /dev/null; then
