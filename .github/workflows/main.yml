@@ -141,7 +141,7 @@ jobs:
           sleep 60
           
           # Trigger the data loading DAG if it exists
-          curl -X POST http://localhost:8080/api/v1/dags/1_weather_data_loading_dag/dagRuns \
+          curl -X POST http://localhost:8080/api/v1/dags/1_weather_initial_split_dag/dagRuns \
             -H "Content-Type: application/json" \
             -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" \
             -d '{"conf": {}}'
