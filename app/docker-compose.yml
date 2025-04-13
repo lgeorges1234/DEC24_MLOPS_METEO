@@ -240,6 +240,21 @@ services:
         db:
           condition: service_healthy
 
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile-streamlit
+    container_name: weather_streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit_app:/app/streamlit_app
+      - ./st_app.py:/app/st_app.py
+    environment:
+      - API_URL=http://app:8000
+    depends_on:
+      - app
+
 volumes:
   postgres-db-volume:
   postgres_data:
