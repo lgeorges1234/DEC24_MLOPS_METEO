@@ -32,13 +32,30 @@ async def root():
             "evaluate": "/evaluate",
                         "predict": {
                 "automatic": "GET /predict",
-                "manual": "POST /predict"
+                "manual": "POST /predict_user"
             },
             "workflow": {
                 "start": "/workflow/start",
                 "complete": "/workflow/complete",
                 "run-full": "/workflow/run-full"
             }
+        },
+        "features_for_manual_input": {
+            "Location": "Integer location code",
+            "MinTemp": "Minimum temperature (-50 to 60)",
+            "MaxTemp": "Maximum temperature (-50 to 60)",
+            "WindGustDir": "Wind gust direction (0-360 degrees)",
+            "WindGustSpeed": "Wind gust speed (0-200)",
+            "WindDir9am": "Wind direction at 9am (0-360 degrees)",
+            "WindDir3pm": "Wind direction at 3pm (0-360 degrees)",
+            "WindSpeed9am": "Wind speed at 9am (0-200)",
+            "WindSpeed3pm": "Wind speed at 3pm (0-200)",
+            "Humidity9am": "Humidity at 9am (0-100%)",
+            "Humidity3pm": "Humidity at 3pm (0-100%)",
+            "Pressure3pm": "Atmospheric pressure (900-1100 hPa)",
+            "Cloud9am": "Cloud cover at 9am (0-9)",
+            "Cloud3pm": "Cloud cover at 3pm (0-9)",
+            "RainToday": "Rain today (0 or 1)"
         }
     }
 
