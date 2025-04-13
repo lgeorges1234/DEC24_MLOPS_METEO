@@ -7,8 +7,8 @@ import os
 from streamlit_app import config
 
 # Chemin du dossier des images
-IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'streamlit_app', 'Image')
-
+##IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'streamlit_app', 'Image')
+IMAGE_FOLDER = os.path.join('/app', 'streamlit_app', 'Image')
 # Chemin de l'API
 
 API_URL = os.getenv('API_URL', 'http://localhost:8000')
@@ -97,7 +97,7 @@ class WeatherPrediction:
                     st.info(f"Probabilité : {prediction['probability']:.2%}")
 
                     # Afficher l'image correspondant à la prédiction
-                    image_filename = 'rain.jpeg' if prediction['prediction'] == 0 else 'sun.jpeg'
+                    image_filename = 'rain.jpeg' if prediction['prediction'] == 0.0 else 'sun.jpeg'
                     image_path = os.path.join(IMAGE_FOLDER, image_filename)
                     
                     if os.path.exists(image_path):

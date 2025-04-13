@@ -66,6 +66,13 @@ def extract_and_prepare_df(path_raw_data, csv_file, user_input = None, log_to_ml
         if user_input is not None:
             # Conversion des données utilisateur en DataFrame
             df = pd.DataFrame([user_input])
+
+            # Ajout de deux colonnes manquantes dans les données saisies mais présente dans les données d'entrainement
+            if 'Evaporation' not in df.columns:
+                df['Evaporation'] = 0.0 
+            if 'Sunshine' not in df.columns:
+                df['Sunshine'] = 0.0  
+
             initial_shape = df.shape
             logger.info("Données utilisateur chargées")
         else:
@@ -77,9 +84,9 @@ def extract_and_prepare_df(path_raw_data, csv_file, user_input = None, log_to_ml
             df = pd.read_csv(path_raw_data / csv_file)
             logger.info("Données chargées")
         
-        # Stockez la forme initiale mais ne la loggez qu'à la fin 
-        # pour éviter les collisions lors de multiples appels
-        initial_shape = df.shape
+            # Stockez la forme initiale mais ne la loggez qu'à la fin 
+            # pour éviter les collisions lors de multiples appels
+            initial_shape = df.shape
         
         # Conversion des variables catégorielles cibles en variables binaires
         if 'RainTomorrow' in df.columns:
@@ -183,7 +190,8 @@ def train_model():
 
         # Sauvegarde du nom des colonnes
         features_names = X.columns
-        
+        features_names = X.columns.tolist()
+        joblib.dump(features_names, MODEL_PATH / "feature_order.joblib")
         # Log essential features information
         mlflow.log_param("features_count", len(features_names))
         
@@ -542,6 +550,7 @@ def predict_weather(user_input = None):
     try:
         # Tag the current step
         mlflow.set_tag("current_step", "prediction")
+        feature_order = joblib.load(MODEL_PATH / "feature_order.joblib")
         
         # Try to load the model from MLflow
         try:
@@ -577,6 +586,7 @@ def predict_weather(user_input = None):
         
          # Determine input source
         if user_input is not None:
+            logger.info("Preparing user input data")
             # User input prediction
             mlflow.set_tag("prediction_type", "user_input")
             input_df, _, _ = extract_and_prepare_df(
@@ -585,6 +595,8 @@ def predict_weather(user_input = None):
                 user_input=user_input,
                 log_to_mlflow=True
             )
+            input_df = input_df.reindex(columns=feature_order)
+            logger.info(f"Prepared input DataFrame: {input_df}")
         else:
             # Input file for prediction
             mlflow.set_tag("prediction_type", "file_based")
@@ -592,17 +604,17 @@ def predict_weather(user_input = None):
             mlflow.set_tag("prediction_input_file", str(input_file))
             logger.info(f"prediction input file: {input_file}")
 
-        # Prepare the data (with minimal logging)
-        input_df, _, _ = extract_and_prepare_df(
-            PREDICTION_RAW_DATA_PATH, 
-            csv_file_daily_prediction,
-            log_to_mlflow=False  # Disable detailed logging for prediction preparation
-        )
-        
+            # Prepare the data (with minimal logging)
+            input_df, _, _ = extract_and_prepare_df(
+                PREDICTION_RAW_DATA_PATH, 
+                csv_file_daily_prediction,
+                log_to_mlflow=False  # Disable detailed logging for prediction preparation
+            )
+
         # Remove "RainTomorrow" column before prediction
         if "RainTomorrow" in input_df.columns:
             input_df = input_df.drop(columns=["RainTomorrow"])
-        
+
         # Standardize the data
         input_scaled = scaler.transform(input_df)
 

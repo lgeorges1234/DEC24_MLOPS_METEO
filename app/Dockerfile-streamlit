@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le reste des fichiers de l'application
 COPY . .
 # Copier le dossier des images
-COPY streamlit_app/Image /app/streamlit_app/Image
+COPY ./streamlit_app ./streamlit_app
 
 # Port utilisé par Streamlit
 EXPOSE 8501

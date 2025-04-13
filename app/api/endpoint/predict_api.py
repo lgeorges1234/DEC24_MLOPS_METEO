@@ -11,7 +11,7 @@ import logging
 import mlflow
 from fastapi import APIRouter, HTTPException
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, ValidationError, Field
+from pydantic import BaseModel, ValidationError, Field, validator
 from utils.mlflow_config import setup_mlflow
 from utils.mlflow_run_manager import get_deployment_run
 from utils.functions import predict_weather
@@ -198,11 +198,11 @@ class UserInputPrediction(BaseModel):
     @validator('Humidity9am', 'Humidity3pm')
     def validate_humidity_level(cls, v):
         """Ensure humidity level"""
-        if not (0 <= v <= 1):
+        if not (0 <= v <= 100):
             raise ValueError("Humidity must be between 0 and 100%")
         return v
     
-    @validator('Humidity9am', 'Humidity3pm')
+    @validator('Pressure3pm')
     def validate_pressure_level(cls, v):
         """Ensure pressure"""
         if not (900 <= v <= 1100):
@@ -236,6 +236,9 @@ async def predict_user_input(input_data: UserInputPrediction):
         
         # Convert Pydantic model to dictionary
         data = input_data.model_dump()
+
+        # Log the exact data received
+        logger.info(f"Received prediction data: {data}")
         
         # Use the deployment run as parent
         with mlflow.start_run(run_id=deployment_run_id):
@@ -250,7 +253,11 @@ async def predict_user_input(input_data: UserInputPrediction):
                 mlflow.log_params(data)
                 
                 # Execute the prediction with user input
-                prediction, probability = predict_weather(user_input=data)
+                try:
+                    prediction, probability = predict_weather(user_input=data)
+                except Exception as predict_error:
+                    logger.error(f"Prediction error: {str(predict_error)}")
+                    raise
                 
                 return {
                     "status": status,
