@@ -56,27 +56,37 @@ def replace_with_thresholds(dataframe, column):
     dataframe.loc[(dataframe[column] < low_limit), column] = low_limit
     dataframe.loc[(dataframe[column] > up_limit), column] = up_limit
 
-def extract_and_prepare_df(path_raw_data, csv_file, log_to_mlflow=True):
+def extract_and_prepare_df(path_raw_data, csv_file, user_input = None, log_to_mlflow=True):
     """
     Extraction et préparation des données météorologiques à partir du .csv
     Version avec logging MLflow simplifié
     """
     try:
-        # Extraction
-        logger.info("Lecture du fichier: %s", path_raw_data / csv_file)
-        if not (path_raw_data / csv_file).exists():
-            raise FileNotFoundError(f"Le fichier {path_raw_data / csv_file} n'a pas été trouvé")
+        # Choix de la source de données
+        if user_input is not None:
+            # Conversion des données utilisateur en DataFrame
+            df = pd.DataFrame([user_input])
+            initial_shape = df.shape
+            logger.info("Données utilisateur chargées")
+        else:
+            # Extraction
+            logger.info("Lecture du fichier: %s", path_raw_data / csv_file)
+            if not (path_raw_data / csv_file).exists():
+                raise FileNotFoundError(f"Le fichier {path_raw_data / csv_file} n'a pas été trouvé")
 
-        df = pd.read_csv(path_raw_data / csv_file)
-        logger.info("Données chargées")
+            df = pd.read_csv(path_raw_data / csv_file)
+            logger.info("Données chargées")
         
         # Stockez la forme initiale mais ne la loggez qu'à la fin 
         # pour éviter les collisions lors de multiples appels
         initial_shape = df.shape
         
         # Conversion des variables catégorielles cibles en variables binaires
-        df['RainTomorrow'] = df['RainTomorrow'].map({'Yes': 1, 'No': 0})
-        df['RainToday'] = df['RainToday'].map({'Yes': 1, 'No': 0})
+        if 'RainTomorrow' in df.columns:
+            df['RainTomorrow'] = df['RainTomorrow'].map({'Yes': 1, 'No': 0})
+        
+        if 'RainToday' in df.columns:
+            df['RainToday'] = df['RainToday'].map({'Yes': 1, 'No': 0})
 
         # Identification et séparation des colonnes catégorielles et continues
         categorical, continuous = [],[]
@@ -100,17 +110,21 @@ def extract_and_prepare_df(path_raw_data, csv_file, log_to_mlflow=True):
 
         # Suppression des lignes avec valeurs manquantes dans les variables cibles
         rows_before = len(df)
-        df = df.dropna(subset=['RainToday', 'RainTomorrow'])
+        if 'RainToday' in df.columns and 'RainTomorrow' in df.columns:
+            df = df.dropna(subset=['RainToday', 'RainTomorrow'])
         rows_after = len(df)
         
         # Modification des seuils des variables cibles
-        columns_for_outliers = df.drop(columns=['RainTomorrow', 'RainToday', 'Date', 'Location']).columns
+        columns_for_outliers = [
+            col for col in df.columns 
+            if col not in ['RainTomorrow', 'RainToday', 'Date', 'Location']
+        ]
         for column in columns_for_outliers:
             replace_with_thresholds(df, column)
 
         # Suppression des colonnes non nécessaires
         columns_to_drop = ['Date', 'Temp3pm', 'Pressure9am', 'Temp9am', 'Rainfall']
-        df.drop(columns_to_drop, axis=1, inplace=True)
+        df.drop(columns=[col for col in columns_to_drop if col in df.columns], axis=1, inplace=True)
 
         logger.info("Préparation terminée. Dimensions finales: %s", df.shape)
         
@@ -520,7 +534,7 @@ def evaluate_model():
         mlflow.set_tag("evaluation_error", str(e))
         raise
 
-def predict_weather():
+def predict_weather(user_input = None):
     """
     Prediction on new data with MLflow tracking.
     Version optimisée pour un tracking minimal des prédictions.
@@ -561,10 +575,22 @@ def predict_weather():
             model = joblib.load(MODEL_PATH / "rfc.joblib")
             scaler = joblib.load(MODEL_PATH / "scaler.joblib")
         
-        # Input file for prediction
-        input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
-        mlflow.set_tag("prediction_input_file", str(input_file))
-        logger.info(f"prediction input file: {input_file}")
+         # Determine input source
+        if user_input is not None:
+            # User input prediction
+            mlflow.set_tag("prediction_type", "user_input")
+            input_df, _, _ = extract_and_prepare_df(
+                PREDICTION_RAW_DATA_PATH, 
+                csv_file_daily_prediction,
+                user_input=user_input,
+                log_to_mlflow=True
+            )
+        else:
+            # Input file for prediction
+            mlflow.set_tag("prediction_type", "file_based")
+            input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
+            mlflow.set_tag("prediction_input_file", str(input_file))
+            logger.info(f"prediction input file: {input_file}")
 
         # Prepare the data (with minimal logging)
         input_df, _, _ = extract_and_prepare_df(
