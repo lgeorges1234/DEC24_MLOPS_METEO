@@ -9,9 +9,9 @@ from datetime import datetime
 from http.client import HTTPException
 import logging
 import mlflow
-from fastapi import APIRouter, HTTPException, ValidationError, Field
+from fastapi import APIRouter, HTTPException
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError, Field
 from utils.mlflow_config import setup_mlflow
 from utils.mlflow_run_manager import get_deployment_run
 from utils.functions import predict_weather
