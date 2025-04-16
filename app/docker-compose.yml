@@ -255,6 +255,14 @@ services:
     depends_on:
       - app
 
+  tests:
+    build: 
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./tests_unitaires:/app/api/tests_unitaires
+    command: pytest tests_unitaires/
+
 volumes:
   postgres-db-volume:
   postgres_data:

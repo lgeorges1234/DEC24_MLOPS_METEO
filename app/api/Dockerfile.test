@@ -1,0 +1,15 @@
+FROM python:3.8-slim
+
+WORKDIR /app
+
+
+COPY requirements.txt .
+COPY tests_unitaires/ ./tests_unitaires/
+COPY main.py .
+
+# Installer les dépendances
+RUN pip install -r requirements.txt
+RUN pip install pytest
+
+# Commande pour lancer les tests
+CMD ["pytest", "tests_unitaires/"]
