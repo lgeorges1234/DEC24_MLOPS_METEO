@@ -243,7 +243,7 @@ services:
   streamlit:
     build:
       context: .
-      dockerfile: Dockerfile-streamlit
+      dockerfile: Dockerfile.streamlit
     container_name: weather_streamlit
     ports:
       - "8501:8501"

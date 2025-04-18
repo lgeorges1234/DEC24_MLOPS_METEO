@@ -1,0 +1,34 @@
+
+FROM python:3.8-slim
+
+# Définir le répertoire de travail dans le conteneur
+WORKDIR /app
+
+# Installer les dépendances système nécessaires
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    software-properties-common \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copier les fichiers de dépendances
+COPY requirements.txt .
+
+# Installer les dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copier le reste des fichiers de l'application
+COPY . .
+# Copier le dossier des images
+COPY ./streamlit_app ./streamlit_app
+
+# Port utilisé par Streamlit
+EXPOSE 8501
+
+# Variables d'environnement pour Streamlit
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+
+# Commande pour lancer l'application Streamlit
+CMD ["streamlit", "run", "st_app.py"]
