@@ -1,0 +1,109 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect x="0" y="0" width="800" height="600" fill="#f8f9fa" />
+  
+  <!-- Airflow Section -->
+  <rect x="50" y="50" width="700" height="120" rx="10" fill="#e1f5fe" stroke="#01579b" stroke-width="2" />
+  <text x="400" y="85" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">Airflow DAGs</text>
+  
+  <!-- Training DAG -->
+  <rect x="80" y="100" width="150" height="50" rx="5" fill="#bbdefb" stroke="#0288d1" stroke-width="1" />
+  <text x="155" y="130" font-family="Arial" font-size="14" text-anchor="middle">Training DAG</text>
+  
+  <!-- Prediction DAG -->
+  <rect x="570" y="100" width="150" height="50" rx="5" fill="#bbdefb" stroke="#0288d1" stroke-width="1" />
+  <text x="645" y="130" font-family="Arial" font-size="14" text-anchor="middle">Prediction DAG</text>
+  
+  <!-- MLflow Section -->
+  <rect x="50" y="200" width="700" height="120" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" />
+  <text x="400" y="235" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">MLflow</text>
+  
+  <!-- Tracking Server -->
+  <rect x="80" y="250" width="150" height="50" rx="5" fill="#c8e6c9" stroke="#43a047" stroke-width="1" />
+  <text x="155" y="280" font-family="Arial" font-size="14" text-anchor="middle">Tracking Server</text>
+  
+  <!-- Model Registry -->
+  <rect x="325" y="250" width="150" height="50" rx="5" fill="#c8e6c9" stroke="#43a047" stroke-width="1" />
+  <text x="400" y="280" font-family="Arial" font-size="14" text-anchor="middle">Model Registry</text>
+  
+  <!-- Artifacts Storage -->
+  <rect x="570" y="250" width="150" height="50" rx="5" fill="#c8e6c9" stroke="#43a047" stroke-width="1" />
+  <text x="645" y="280" font-family="Arial" font-size="14" text-anchor="middle">Artifacts Storage</text>
+  
+  <!-- API Section -->
+  <rect x="50" y="350" width="700" height="120" rx="10" fill="#fff3e0" stroke="#ff6f00" stroke-width="2" />
+  <text x="400" y="385" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">API Endpoints</text>
+  
+  <!-- Workflow API -->
+  <rect x="80" y="400" width="120" height="50" rx="5" fill="#ffe0b2" stroke="#fb8c00" stroke-width="1" />
+  <text x="140" y="430" font-family="Arial" font-size="14" text-anchor="middle">Workflow API</text>
+  
+  <!-- Training API -->
+  <rect x="230" y="400" width="120" height="50" rx="5" fill="#ffe0b2" stroke="#fb8c00" stroke-width="1" />
+  <text x="290" y="430" font-family="Arial" font-size="14" text-anchor="middle">Training API</text>
+  
+  <!-- Evaluation API -->
+  <rect x="380" y="400" width="120" height="50" rx="5" fill="#ffe0b2" stroke="#fb8c00" stroke-width="1" />
+  <text x="440" y="430" font-family="Arial" font-size="14" text-anchor="middle">Evaluate API</text>
+  
+  <!-- Prediction API -->
+  <rect x="530" y="400" width="120" height="50" rx="5" fill="#ffe0b2" stroke="#fb8c00" stroke-width="1" />
+  <text x="590" y="430" font-family="Arial" font-size="14" text-anchor="middle">Predict API</text>
+  
+  <!-- Core Functions Section -->
+  <rect x="50" y="500" width="700" height="80" rx="10" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="2" />
+  <text x="400" y="535" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">Core Functions</text>
+  
+  <!-- Functions -->
+  <rect x="80" y="550" width="150" height="20" rx="3" fill="#e1bee7" stroke="#8e24aa" stroke-width="1" />
+  <text x="155" y="564" font-family="Arial" font-size="12" text-anchor="middle">extract_and_prepare_df</text>
+  
+  <rect x="250" y="550" width="120" height="20" rx="3" fill="#e1bee7" stroke="#8e24aa" stroke-width="1" />
+  <text x="310" y="564" font-family="Arial" font-size="12" text-anchor="middle">train_model</text>
+  
+  <rect x="390" y="550" width="120" height="20" rx="3" fill="#e1bee7" stroke="#8e24aa" stroke-width="1" />
+  <text x="450" y="564" font-family="Arial" font-size="12" text-anchor="middle">evaluate_model</text>
+  
+  <rect x="530" y="550" width="120" height="20" rx="3" fill="#e1bee7" stroke="#8e24aa" stroke-width="1" />
+  <text x="590" y="564" font-family="Arial" font-size="12" text-anchor="middle">predict_weather</text>
+  
+  <!-- Arrows -->
+  <!-- Training workflow -->
+  <line x1="155" y1="150" x2="155" y2="240" stroke="#01579b" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="175" y="190" font-family="Arial" font-size="12">start_workflow</text>
+  
+  <line x1="155" y1="300" x2="140" y2="390" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="105" y="345" font-family="Arial" font-size="12">run_id</text>
+  
+  <line x1="200" y1="425" x2="230" y2="425" stroke="#ff6f00" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="350" y1="425" x2="380" y2="425" stroke="#ff6f00" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <line x1="290" y1="400" x2="290" y2="280" stroke="#ff6f00" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="300" y="345" font-family="Arial" font-size="12">continue_run</text>
+  
+  <line x1="440" y1="400" x2="400" y2="300" stroke="#ff6f00" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="450" y="345" font-family="Arial" font-size="12">model promotion</text>
+  
+  <!-- Prediction workflow -->
+  <line x1="645" y1="150" x2="645" y2="240" stroke="#01579b" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="665" y="190" font-family="Arial" font-size="12">make_prediction</text>
+  
+  <line x1="645" y1="300" x2="590" y2="390" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="620" y="345" font-family="Arial" font-size="12">load model</text>
+  
+  <line x1="400" y1="300" x2="590" y2="390" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="520" y="330" font-family="Arial" font-size="12">get_deployment_run</text>
+  
+  <!-- Functions to MLflow -->
+  <line x1="155" y1="550" x2="155" y2="300" stroke="#6a1b9a" stroke-width="1.5" stroke-dasharray="5,5" />
+  <line x1="310" y1="550" x2="400" y2="300" stroke="#6a1b9a" stroke-width="1.5" stroke-dasharray="5,5" />
+  <line x1="450" y1="550" x2="155" y2="300" stroke="#6a1b9a" stroke-width="1.5" stroke-dasharray="5,5" />
+  <line x1="590" y1="550" x2="400" y2="300" stroke="#6a1b9a" stroke-width="1.5" stroke-dasharray="5,5" />
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+</svg>

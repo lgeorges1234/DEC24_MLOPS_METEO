@@ -17,7 +17,7 @@ TEAM_MEMBERS = [
     Member("Clément Simonin"),
     Member(
         name = "Gael",
-        github_url = ""
+        github_url = "https://github.com/lgeorges1234"
     ),
     Member("Gael"),
     Member(

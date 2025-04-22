@@ -7,8 +7,12 @@ import os
 from streamlit_app import config
 
 # Chemin du dossier des images
-IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'api', 'static', 'images')
+##IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'streamlit_app', 'Image')
+IMAGE_FOLDER = os.path.join('/app', 'streamlit_app', 'Image')
+# Chemin de l'API
 
+API_URL = os.getenv('API_URL', 'http://localhost:8000')
+AIRFLOW_URL = os.getenv('AIRFLOW_URL', 'http://localhost:8080')
 
 # Créer un nouveau module de tab pour la prédiction météo
 class WeatherPrediction:
@@ -20,7 +24,7 @@ class WeatherPrediction:
         # Fonction pour faire la prédiction manuelle
         def make_manual_prediction(input_data):
             try:
-                response = requests.post("http://localhost:8000/predict_user", json=input_data)
+                response = requests.post(f"{API_URL}/predict_user", json=input_data)
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
@@ -30,7 +34,14 @@ class WeatherPrediction:
         # Fonction pour obtenir la prédiction automatique
         def get_automatic_prediction():
             try:
-                response = requests.get("http://localhost:8000/predict")
+                # # Add basic authentication - default credentials are 'airflow'/'airflow'
+                # auth = ("airflow", "airflow")  
+                
+                # response = requests.get(
+                #     f"{AIRFLOW_URL}/api/v1/dags/3_weather_prediction_dag/dagRuns",
+                #     auth=auth
+                # )
+                response = requests.get(f"{API_URL}/predict")
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
@@ -94,7 +105,7 @@ class WeatherPrediction:
                     st.info(f"Probabilité : {prediction['probability']:.2%}")
 
                     # Afficher l'image correspondant à la prédiction
-                    image_filename = 'rain.jpeg' if prediction['prediction'] == 0 else 'sun.jpeg'
+                    image_filename = 'rain.jpeg' if prediction['prediction'] == 0.0 else 'sun.jpeg'
                     image_path = os.path.join(IMAGE_FOLDER, image_filename)
                     
                     if os.path.exists(image_path):
@@ -103,7 +114,7 @@ class WeatherPrediction:
                         st.warning(f"Image non trouvée : {image_path}")
 
         with tab2:
-            st.header("Prédiction Automatique (Fichier CSV)")
+            st.header("Prédiction Automatique")
             
             if st.button("Obtenir la Prédiction Automatique"):
                 prediction = get_automatic_prediction()
@@ -147,8 +158,9 @@ def run():
     for member in config.TEAM_MEMBERS:
         st.sidebar.markdown(member.sidebar_markdown(), unsafe_allow_html=True)
 
-    tab = TABS[tab_name]
-
+    tab_class = TABS[tab_name]
+    # Créez une instance de la classe avant d'appeler run()
+    tab = tab_class()
     tab.run()
 
 if __name__ == "__main__":

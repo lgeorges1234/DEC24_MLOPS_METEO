@@ -5,6 +5,7 @@ Version optimisée avec tracking MLflow simplifié
 '''
 
 from pathlib import Path
+from datetime import datetime
 import logging
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
@@ -218,7 +219,7 @@ def train_model():
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
 
-        # Sauvegarde des données (without excessive logging)
+        # Sauvegarde des données
         pd.DataFrame(X_train_scaled, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_train.csv", index=False)
         pd.Series(y_train).to_csv(CLEAN_DATA_PATH / "y_train.csv", index=False)
         pd.DataFrame(X_test, columns=features_names).to_csv(CLEAN_DATA_PATH / "X_test.csv", index=False)
@@ -241,6 +242,15 @@ def train_model():
         params = {"n_estimators": 10, "max_depth": 10, "random_state": 42}
         mlflow.log_params(params)
         
+        # Création et entraînement du modèle
+        model_type = "RandomForest"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_name = f"{model_type}_{timestamp}"
+        
+        # Add model type to MLflow tracking
+        mlflow.set_tag("model_type", model_type)
+        mlflow.set_tag("model_timestamp", timestamp)
+
         # Création et entraînement du modèle
         rfc = RandomForestClassifier(**params)
         rfc.fit(X_train_scaled, y_train)
@@ -270,11 +280,6 @@ def train_model():
         test_f1 = metrics.f1_score(y_test, test_preds)
         test_roc_auc = metrics.roc_auc_score(y_test, rfc.predict_proba(X_test_scaled)[:,1])
         
-        mlflow.log_metric("test_accuracy", test_accuracy)
-        mlflow.log_metric("test_precision", test_precision)
-        mlflow.log_metric("test_recall", test_recall)
-        mlflow.log_metric("test_f1", test_f1)
-        mlflow.log_metric("test_roc_auc", test_roc_auc)
         
         # Log only top 5 most important features
         feature_importances = [(feature, importance) for feature, importance in 
@@ -284,6 +289,30 @@ def train_model():
         for feature, importance in top_features:
             mlflow.log_metric(f"importance_{feature}", float(importance))
         
+        # Create model performance summary for the description
+        performance_summary = (
+            f"F1: {test_f1:.4f}, "
+            f"Accuracy: {test_accuracy:.4f}, "
+            f"Precision: {test_precision:.4f}, "
+            f"Recall: {test_recall:.4f}, "
+            f"ROC-AUC: {test_roc_auc:.4f}"
+        )
+        
+        # Create model version tags for metadata
+        model_tags = {
+            "model_type": model_type,
+            "timestamp": timestamp,
+            "estimators": params["n_estimators"],
+            "max_depth": params["max_depth"],
+            "f1_score": f"{test_f1:.4f}",
+            "accuracy": f"{test_accuracy:.4f}",
+            "top_feature": top_features[0][0] if top_features else "None",
+            "top_feature_importance": f"{top_features[0][1]:.4f}" if top_features else "0",
+            "performance_summary": performance_summary,
+            "training_samples": str(len(X_train)),
+            "test_samples": str(len(X_test))
+        }
+
         # Signature du modèle pour MLflow
         signature = infer_signature(X_train_scaled, rfc.predict(X_train_scaled))
         
@@ -293,9 +322,16 @@ def train_model():
             artifact_path="model",
             signature=signature,
             input_example=X_train_scaled[:5],
-            registered_model_name=MODEL_NAME
+            registered_model_name=MODEL_NAME,
+            metadata={"performance_summary": performance_summary}
         )
         
+        # Add tags to the model version
+        for tag_key, tag_value in model_tags.items():
+            mlflow.set_tag(tag_key, tag_value)
+
+        mlflow.set_tag("performance_summary", performance_summary)
+
         # Sauvegarde locale (pour compatibilité)
         model_path = MODEL_PATH / "rfc.joblib"
         scaler_path = MODEL_PATH / "scaler.joblib"
@@ -361,7 +397,7 @@ def train_model():
 def evaluate_model():
     """
     Évaluation du modèle avec suivi MLflow.
-    Version optimisée pour les métriques essentielles.
+    Logique de promotion simplifiée: comparer uniquement les scores F1.
     """
     try:
         # We assume we're already in an MLflow run context
@@ -371,9 +407,7 @@ def evaluate_model():
         logger.info("Chargement des données de test")
         
         X_test = pd.read_csv(CLEAN_DATA_PATH / "X_test.csv")
-        X_train = pd.read_csv(CLEAN_DATA_PATH / "X_train.csv")
         y_test = pd.read_csv(CLEAN_DATA_PATH / "y_test.csv")["RainTomorrow"]
-        y_train = pd.read_csv(CLEAN_DATA_PATH / "y_train.csv")["RainTomorrow"]
         
         # Load the model and scaler
         model = joblib.load(MODEL_PATH / "rfc.joblib")
@@ -384,69 +418,19 @@ def evaluate_model():
 
         # Predictions
         y_test_pred = model.predict(X_test)
-        y_test_probs = model.predict_proba(X_test_scaled)[:,1]
         
         # Log essential evaluation metrics
-        test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
-        test_precision = metrics.precision_score(y_test, y_test_pred)
-        test_recall = metrics.recall_score(y_test, y_test_pred)
         test_f1 = metrics.f1_score(y_test, y_test_pred)
-        test_roc_auc = metrics.roc_auc_score(y_test, y_test_probs)
+        mlflow.log_metric("eval_f1", test_f1)
         
-        mlflow.log_metric("test_accuracy", test_accuracy)
-        mlflow.log_metric("test_precision", test_precision)
-        mlflow.log_metric("test_recall", test_recall) 
-        mlflow.log_metric("test_f1", test_f1)
-        mlflow.log_metric("test_roc_auc", test_roc_auc)
-        
-        # Confusion matrix as a parameter rather than detailed metrics
-        cm = metrics.confusion_matrix(y_test, y_test_pred)
-        tn, fp, fn, tp = cm.ravel()
-        mlflow.log_metric("true_positives", tp)
-        mlflow.log_metric("false_positives", fp)
-        mlflow.log_metric("true_negatives", tn)
-        mlflow.log_metric("false_negatives", fn)
-
-        # Metrics on training data (for overfitting comparison)
-        y_train_pred = model.predict(X_train)
-        train_f1 = metrics.f1_score(y_train, y_train_pred)
-        mlflow.log_metric("train_f1", train_f1)
-        
-        # Calculate overfitting score
-        overfitting_ratio = train_f1 / test_f1 if test_f1 > 0 else 999.0
-        mlflow.log_metric("overfitting_ratio", overfitting_ratio)
-
-        # Format metrics for storage
-        metrics_rfc = {
-            "test": {
-                "accuracy": float(test_accuracy),
-                "precision": float(test_precision),
-                "recall": float(test_recall),
-                "f1": float(test_f1),
-                "roc_auc": float(test_roc_auc)
-            },
-            "confusion_matrix": {
-                "true_positives": int(tp),
-                "false_positives": int(fp),
-                "true_negatives": int(tn),
-                "false_negatives": int(fn)
-            },
-            "overfitting": {
-                "train_f1": float(train_f1),
-                "overfitting_ratio": float(overfitting_ratio)
-            }
-        }
-
-        logger.info("Évaluation terminée")
-
         # Save metrics
         metrics_file = METRICS_DATA_PATH / "metrics.json"
         with open(metrics_file, "w") as f:
-            json.dump(metrics_rfc, f, indent=4)
+            json.dump({"f1_score": float(test_f1)}, f, indent=4)
         
         mlflow.log_artifact(str(metrics_file))
         
-        # Model promotion logic
+        # Simplified model promotion logic
         try:
             client = mlflow.tracking.MlflowClient()
             
@@ -465,82 +449,58 @@ def evaluate_model():
                     version=latest_version.version,
                     stage="Production"
                 )
-                
-                # Add appropriate tags based on performance
-                if current_performance > 0.7:  # Base quality threshold
-                    mlflow.set_tag("model_promotion", "First model promoted to Production (meets quality standards)")
-                else:
-                    mlflow.set_tag("model_promotion", "First model promoted to Production (below quality standards)")
-                    mlflow.set_tag("model_quality_warning", f"Model F1 score ({current_performance:.4f}) below threshold (0.7)")
-                    logger.warning(f"First Production model below quality threshold: F1={current_performance:.4f}")
-                
+                mlflow.set_tag("model_promotion", "First model promoted to Production")
                 logger.info(f"Model version {latest_version.version} promoted to Production")
             else:
-                # There's already a Production model - compare performance
-                prod_version = production_models[0]  # If multiple, just take one
+                # There's already a Production model - compare F1 scores
+                prod_version = production_models[0]
                 prod_run = client.get_run(prod_version.run_id)
                 
-                if "test_f1" in prod_run.data.metrics:
+                # Get production model F1 score (check both possible metric names)
+                if "eval_f1" in prod_run.data.metrics:
+                    prod_performance = prod_run.data.metrics["eval_f1"]
+                elif "test_f1" in prod_run.data.metrics:
                     prod_performance = prod_run.data.metrics["test_f1"]
-                    
-                    if current_performance > prod_performance:
-                        # New model is better - archive old one and promote new one
-                        client.transition_model_version_stage(
-                            name=MODEL_NAME,
-                            version=prod_version.version,
-                            stage="Archived"
-                        )
-                        
-                        client.transition_model_version_stage(
-                            name=MODEL_NAME,
-                            version=latest_version.version,
-                            stage="Production"
-                        )
-                        
-                        improvement = current_performance - prod_performance
-                        promotion_msg = f"Promoted to Production (improved by {improvement:.4f})"
-                        
-                        # Add quality warning if below threshold despite being better
-                        if current_performance < 0.7:
-                            mlflow.set_tag("model_quality_warning", 
-                                          f"Model F1 score ({current_performance:.4f}) below threshold (0.7)")
-                            promotion_msg += " but below quality threshold"
-                            
-                        mlflow.set_tag("model_promotion", promotion_msg)
-                        logger.info(f"Model version {latest_version.version} {promotion_msg}")
-                    else:
-                        # New model is not better - archive it
-                        client.transition_model_version_stage(
-                            name=MODEL_NAME,
-                            version=latest_version.version,
-                            stage="Archived"
-                        )
-                        mlflow.set_tag("model_promotion", "Not promoted and archived (no improvement)")
                 else:
-                    logger.warning("Production model has no test_f1 metric")
+                    logger.warning("Production model has no F1 score metric")
+                    return {"f1_score": float(test_f1)}
+                
+                # Simple comparison - promote only if better
+                if current_performance > prod_performance:
+                    # Archive old model
+                    client.transition_model_version_stage(
+                        name=MODEL_NAME,
+                        version=prod_version.version,
+                        stage="Archived"
+                    )
                     
-                    # If we can't find metrics for comparison, be conservative and keep new model
+                    # Promote new model
                     client.transition_model_version_stage(
                         name=MODEL_NAME,
                         version=latest_version.version,
                         stage="Production"
                     )
-                    mlflow.set_tag("model_promotion", 
-                                  "Promoted to Production (couldn't compare with previous model)")
-                    logger.warning(f"Promoted model {latest_version.version} without comparison")
+                    
+                    mlflow.set_tag("model_promotion", f"New model promoted to Production (F1: {current_performance:.4f} vs {prod_performance:.4f})")
+                    logger.info(f"Model version {latest_version.version} promoted to Production with improved F1")
+                else:
+                    # No promotion needed
+                    mlflow.set_tag("model_promotion", "Not promoted (no F1 improvement)")
+                    logger.info(f"Model version {latest_version.version} not promoted (F1: {current_performance:.4f} vs {prod_performance:.4f})")
         
         except Exception as e:
             logger.warning(f"Error during model promotion: {str(e)}")
             mlflow.set_tag("model_promotion_error", str(e))
         
         mlflow.set_tag("evaluation_status", "COMPLETED")
-        return metrics_rfc
+        return {"f1_score": float(test_f1)}
     
     except Exception as e:
         logger.error(f"Erreur lors de l'évaluation: {str(e)}")
         mlflow.set_tag("evaluation_status", "FAILED")
         mlflow.set_tag("evaluation_error", str(e))
         raise
+        
 
 def predict_weather(user_input = None):
     """

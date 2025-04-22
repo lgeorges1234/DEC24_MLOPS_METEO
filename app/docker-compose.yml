@@ -242,26 +242,27 @@ services:
 
   streamlit:
     build:
-      context: .
+      context: ./streamlit_app
       dockerfile: Dockerfile.streamlit
     container_name: weather_streamlit
     ports:
       - "8501:8501"
     volumes:
       - ./streamlit_app:/app/streamlit_app
-      - ./st_app.py:/app/st_app.py
+      # - ./st_app.py:/app/st_app.py
     environment:
       - API_URL=http://app:8000
+      - AIRFLOW_URL=http://airflow-webserver:8080
     depends_on:
       - app
 
-  tests:
-    build: 
-      context: .
-      dockerfile: Dockerfile.test
-    volumes:
-      - ./tests_unitaires:/app/api/tests_unitaires
-    command: pytest tests_unitaires/
+  # tests:
+  #   build: 
+  #     context: .
+  #     dockerfile: Dockerfile.test
+  #   volumes:
+  #     - ./tests_unitaires:/app/api/tests_unitaires
+  #   command: pytest tests_unitaires/
 
 volumes:
   postgres-db-volume:

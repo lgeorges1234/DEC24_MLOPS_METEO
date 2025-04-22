@@ -44,7 +44,7 @@ async def automatic_predict():
         
         # Create a nested run for this specific prediction
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        prediction_run_name = f"prediction_{model_version}_{timestamp}"
+        prediction_run_name = f"automatic_prediction_V{model_version}_{timestamp}"
         
         # Use the deployment run as parent
         with mlflow.start_run(run_id=deployment_run_id):
@@ -232,7 +232,7 @@ async def predict_user_input(input_data: UserInputPrediction):
         
         # Create a nested run for this specific prediction
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        prediction_run_name = f"manual_prediction_{model_version}_{timestamp}"
+        prediction_run_name = f"manual_prediction_V{model_version}_{timestamp}"
         
         # Convert Pydantic model to dictionary
         data = input_data.model_dump()
