@@ -1,15 +1,28 @@
-FROM python:3.8-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
+COPY raw_data/ ./raw_data/
 
-COPY requirements.txt .
-COPY tests_unitaires/ ./tests_unitaires/
-COPY main.py .
+WORKDIR /app/api
+
+# Copier les fichiers nécessaires
+COPY api/requirements.txt .
+COPY api/tests_unitaires/ ./tests_unitaires/
+COPY api/main.py .
+COPY api/endpoint/ ./endpoint/
+COPY api/data/ ./data/
+COPY api/utils/ ./utils/
+COPY api/static/ ./static/
 
 # Installer les dépendances
+RUN apt-get update && apt-get install -y build-essential
 RUN pip install -r requirements.txt
-RUN pip install pytest
+RUN pip install pytest pytest-cov
 
-# Commande pour lancer les tests
-CMD ["pytest", "tests_unitaires/"]
+# Variables d'environnement pour les tests
+ENV PYTHONPATH=/app
+ENV MLFLOW_TRACKING_URI=http://fake-mlflow:5000
+
+# Ajouter une commande de nettoyage du cache python avant les tests
+CMD PYTHONPATH=/app pytest -vv tests_unitaires/
