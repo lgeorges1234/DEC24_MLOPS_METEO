@@ -30,6 +30,31 @@ env:
   SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
 
 jobs:
+  test:
+    name: Run Unit Tests
+    runs-on: [self-hosted, weather-app]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build test Docker image
+        run: |
+          docker build -t weather-app-tests -f api/Dockerfile.test .
+          
+      - name: Run unit tests
+        run: |
+          echo "Running unit tests..."
+          # Run tests and capture exit code
+          docker run --rm weather-app-tests
+          TEST_EXIT_CODE=$?
+          
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "Tests failed. Exiting with error code $TEST_EXIT_CODE"
+            exit $TEST_EXIT_CODE
+          else
+            echo "All tests passed successfully"
+          fi
+
   deploy:
     runs-on: [self-hosted, weather-app]
     environment: ${{ github.event.inputs.environment || 'production' }}
