@@ -7,13 +7,13 @@ COPY raw_data/ ./raw_data/
 WORKDIR /app/api
 
 # Copier les fichiers nécessaires
-COPY api/requirements.txt .
-COPY api/tests_unitaires/ ./tests_unitaires/
-COPY api/main.py .
-COPY api/endpoint/ ./endpoint/
-COPY api/data/ ./data/
-COPY api/utils/ ./utils/
-COPY api/static/ ./static/
+COPY requirements.txt .
+COPY tests_unitaires/ ./tests_unitaires/
+COPY main.py .
+COPY endpoint/ ./endpoint/
+COPY data/ ./data/
+COPY utils/ ./utils/
+COPY static/ ./static/
 
 # Installer les dépendances
 RUN apt-get update && apt-get install -y build-essential
