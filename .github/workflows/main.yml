@@ -131,14 +131,6 @@ jobs:
           docker pull redis:latest
           docker pull ghcr.io/mlflow/mlflow:v2.21.0rc0
           docker pull ${AIRFLOW_IMAGE_NAME}
-          
-      # - name: Build API Docker image
-      #   run: |
-      #     cd ~/weather-app-deployment/app/api
-      #     docker build -t weather-app:latest .
-      #         # Build Streamlit service
-      #     cd ~/weather-app-deployment/streamlit_app
-      #     docker build -t weather-streamlit:latest -f Dockerfile.streamlit .
 
       - name: Configure environment
         run: |
@@ -164,18 +156,6 @@ jobs:
           cd ~/weather-app-deployment
           docker-compose down
           docker-compose up --build -d
-      
-          echo "Waiting for services to initialize (30 seconds)..."
-          sleep 30
-          
-          echo "Container status:"
-          docker ps -a
-          
-          echo "Logs for Streamlit container:"
-          docker-compose logs streamlit
-          
-          echo "Logs for API container:"
-          docker-compose logs app
 
       - name: Initialize data directories
         run: |

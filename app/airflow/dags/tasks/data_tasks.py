@@ -37,110 +37,133 @@ def split_initial_dataset(**context):
 
 def process_daily_prediction_row(**context):
     """
-    Process the first row of the prediction dataset with additional debugging
-    """
-    import os
-    import time
-    import datetime
+    Process the first row of the prediction dataset:
+    1. Add it to the training dataset
+    2. Create a version without the target (RainTomorrow) for prediction
+    3. Remove the processed row from the prediction dataset
     
-    print(f"Starting daily prediction row processing at {datetime.datetime.now()}")
+    This function assumes:
+    - The prediction dataset is at PREDICTION_RAW_DATA_PATH/weatherAUS_prediction.csv
+    - The training dataset is at TRAINING_RAW_DATA_PATH/weatherAUS_training.csv
+    - The daily prediction file will be saved at PREDICTION_RAW_DATA_PATH/daily_row_prediction.csv
+    """
+    from config import TRAINING_RAW_DATA_PATH, PREDICTION_RAW_DATA_PATH
+    
+    logger.info("Starting daily prediction row processing")
     
     # Create directories if they don't exist
     TRAINING_RAW_DATA_PATH.mkdir(parents=True, exist_ok=True)
     PREDICTION_RAW_DATA_PATH.mkdir(parents=True, exist_ok=True)
     
-    # Create a test file to verify we can write to the directory
-    test_file = PREDICTION_RAW_DATA_PATH / 'test_write.txt'
-    with open(test_file, 'w') as f:
-        f.write(f"Test write at {datetime.datetime.now()}")
-    
-    print(f"Created test file at {test_file}, exists={test_file.exists()}")
-    
-    # Check file permissions on prediction directory
-    prediction_dir = PREDICTION_RAW_DATA_PATH
-    print(f"Prediction directory: {prediction_dir}")
-    print(f"Directory exists: {prediction_dir.exists()}")
-    print(f"Directory is readable: {os.access(prediction_dir, os.R_OK)}")
-    print(f"Directory is writable: {os.access(prediction_dir, os.W_OK)}")
-    
     # Read the prediction dataset
     prediction_file = PREDICTION_RAW_DATA_PATH / 'weatherAUS_prediction.csv'
-    print(f"Prediction file path: {prediction_file}")
-    print(f"File exists: {prediction_file.exists()}")
-    if prediction_file.exists():
-        print(f"File size: {prediction_file.stat().st_size} bytes")
-        print(f"File permissions: {oct(prediction_file.stat().st_mode)}")
-        print(f"File is readable: {os.access(prediction_file, os.R_OK)}")
-        print(f"File is writable: {os.access(prediction_file, os.W_OK)}")
+    if not prediction_file.exists():
+        raise FileNotFoundError(f"Prediction file not found at {prediction_file}")
     
-    # Make a backup of the prediction file for debugging
-    if prediction_file.exists():
-        backup_file = PREDICTION_RAW_DATA_PATH / f'weatherAUS_prediction_backup_{int(time.time())}.csv'
-        with open(prediction_file, 'r') as src:
-            content = src.read()
-        with open(backup_file, 'w') as dst:
-            dst.write(content)
-        print(f"Created backup at {backup_file}")
+    # Read the entire prediction dataset
+    prediction_df = pd.read_csv(prediction_file)
+    if prediction_df.empty:
+        raise ValueError("Prediction dataset is empty")
     
-    # Read the ENTIRE prediction dataset
-    full_prediction_df = pd.read_csv(prediction_file)
-    print(f"Read prediction file with {len(full_prediction_df)} rows")
+    # Store the original row count for verification
+    original_row_count = len(prediction_df)
+    logger.info(f"Original prediction dataset has {original_row_count} rows")
     
-    if full_prediction_df.empty:
-        print("Warning: Prediction dataset is empty")
-        return {"status": "empty_dataset"}
+    # Extract first row for processing
+    first_row = prediction_df.iloc[0:1].copy()
+    logger.info(f"Extracted first row from prediction dataset: {first_row.shape}")
     
-    # Print the first few rows to debug
-    print("First 2 rows of prediction dataset:")
-    print(full_prediction_df.head(2))
+    # Log the details of the row being processed
+    if 'Date' in first_row.columns:
+        date_str = first_row['Date'].values[0]
+        logger.info(f"PROCESSING ROW DATE: {date_str}")
     
-    # Extract the first row for processing
-    prediction_df = full_prediction_df.iloc[[0]].copy()
-    print(f"Extracted first row: {prediction_df.iloc[0]['Date']} for location {prediction_df.iloc[0]['Location']}")
+    # Log more details of the row for verification
+    row_details = {}
+    for column in first_row.columns:
+        row_details[column] = str(first_row[column].values[0])
+    
+    logger.info(f"DAILY ROW DETAILS: {row_details}")
+    
+    # Print a clear separator for visibility in logs
+    logger.info("="*50)
     
     # 1. Append to training dataset
     training_file = TRAINING_RAW_DATA_PATH / 'weatherAUS_training.csv'
-    prediction_df.to_csv(training_file, mode='a', header=not training_file.exists(), index=False)
-    print(f"Added row to training dataset at {training_file}")
+    
+    # Check if training file exists, if not, create it with header
+    if not training_file.exists():
+        logger.info(f"Training file not found at {training_file}, creating new file")
+        first_row.to_csv(training_file, index=False)
+    else:
+        # Append to existing file without header
+        first_row.to_csv(training_file, mode='a', header=False, index=False)
+    
+    logger.info(f"Added row to training dataset at {training_file}")
     
     # 2. Create a version for prediction
     daily_prediction_file = PREDICTION_RAW_DATA_PATH / 'daily_row_prediction.csv'
-    prediction_df.to_csv(daily_prediction_file, index=False)
-    print(f"Saved daily prediction row to {daily_prediction_file}")
+    first_row.to_csv(daily_prediction_file, index=False)
     
-    # 3. Remove the processed row from the prediction dataset and save
-    updated_prediction_df = full_prediction_df.iloc[1:].copy()
+    logger.info(f"Saved daily prediction row to {daily_prediction_file}")
     
-    # Debug the updated dataframe
-    print(f"Updated prediction dataset has {len(updated_prediction_df)} rows")
-    if not updated_prediction_df.empty:
-        print(f"New first row: {updated_prediction_df.iloc[0]['Date']} for location {updated_prediction_df.iloc[0]['Location']}")
+    # 3. Remove the processed row from the prediction dataset
+    remaining_rows = prediction_df.iloc[1:].reset_index(drop=True)
+    expected_new_count = original_row_count - 1
     
-    # Write to a new file first to avoid partial writes
-    temp_file = PREDICTION_RAW_DATA_PATH / 'weatherAUS_prediction_new.csv'
-    updated_prediction_df.to_csv(temp_file, index=False)
-    print(f"Wrote updated data to temporary file {temp_file}")
+    # Check that we have the expected number of rows
+    if len(remaining_rows) != expected_new_count:
+        logger.error(f"Row removal error: Expected {expected_new_count} rows but got {len(remaining_rows)}")
+        raise ValueError("Failed to properly remove the first row from the prediction dataset")
     
-    # Verify the temp file was written correctly
-    if temp_file.exists():
-        print(f"Temp file size: {temp_file.stat().st_size} bytes")
-        # Read it back to double-check
-        verification_df = pd.read_csv(temp_file)
-        print(f"Verification: The temp file has {len(verification_df)} rows")
+    # Save the updated prediction dataset
+    try:
+        # Check if we have write permissions
+        if os.access(prediction_file, os.W_OK):
+            remaining_rows.to_csv(prediction_file, index=False)
+            logger.info(f"Updated prediction dataset saved with {len(remaining_rows)} rows")
+        else:
+            logger.error(f"No write permission for file: {prediction_file}")
+            raise PermissionError(f"Cannot write to file: {prediction_file}")
+            
+        # Verify the file was updated correctly
+        try:
+            # Read the file again to check its contents
+            verification_df = pd.read_csv(prediction_file)
+            
+            # Check row count
+            if len(verification_df) != expected_new_count:
+                logger.error(f"Verification failed: File has {len(verification_df)} rows, expected {expected_new_count}")
+                raise ValueError("File verification failed: Row count mismatch")
+                
+            # Compare the first row date with what we expect
+            if 'Date' in verification_df.columns and 'Date' in prediction_df.columns:
+                expected_next_date = prediction_df.iloc[1]['Date'] if original_row_count > 1 else None
+                actual_next_date = verification_df.iloc[0]['Date'] if not verification_df.empty else None
+                
+                if expected_next_date and actual_next_date and expected_next_date != actual_next_date:
+                    logger.error(f"Verification failed: Expected next date {expected_next_date}, got {actual_next_date}")
+                    raise ValueError("File verification failed: Date mismatch")
+                    
+            logger.info("File verification successful: Prediction dataset correctly updated")
+            
+        except Exception as ve:
+            logger.error(f"Verification error: {str(ve)}")
+            raise
     
-    # Now rename to replace the original file
-    os.replace(temp_file, prediction_file)
-    print(f"Replaced original file with updated version")
+    except Exception as e:
+        logger.error(f"Error updating prediction file: {str(e)}")
+        raise
     
-    # Verify the update worked
-    if prediction_file.exists():
-        verify_df = pd.read_csv(prediction_file)
-        print(f"Final verification: The prediction file now has {len(verify_df)} rows")
-        success = len(verify_df) == len(updated_prediction_df)
-        print(f"Update successful: {success}")
+    logger.info(f"Successfully processed daily prediction row. Remaining rows in dataset: {len(remaining_rows)}")
     
+    # Format and return all the relevant information
     return {
         "daily_prediction_file": str(daily_prediction_file),
-        "row_count": len(prediction_df),
-        "remaining_prediction_rows": len(updated_prediction_df)
+        "date": str(first_row['Date'].values[0]) if 'Date' in first_row.columns else "Unknown",
+        "location": str(first_row['Location'].values[0]) if 'Location' in first_row.columns else "Unknown",
+        "row_details": row_details,  # Include full row details in the return value
+        "rows_before": original_row_count,
+        "rows_after": len(remaining_rows),
+        "row_removed": True
     }

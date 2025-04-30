@@ -3,6 +3,7 @@ from airflow.operators.python import PythonOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime
+from airflow.dags.tasks.logs_tasks import log_prediction_row_details
 from tasks.data_tasks import process_daily_prediction_row
 from tasks.model_tasks import make_prediction
 from config import (
@@ -36,6 +37,12 @@ with DAG(
             python_callable=process_daily_prediction_row,
             provide_context=True
         )
+
+    log_row_details = PythonOperator(
+        task_id='log_prediction_row_details',
+        python_callable=log_prediction_row_details,
+        provide_context=True
+    )
 
     check_daily_prediction_file = FileSensor(
         task_id='check_daily_prediction_file',
