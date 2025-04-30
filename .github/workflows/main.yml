@@ -39,7 +39,7 @@ jobs:
 
       - name: Build test Docker image
         run: |
-          docker build -t weather-app-tests -f Dockerfile.test app/api
+          docker build -t weather-app-tests -f api/Dockerfile.test .
           
       - name: Run unit tests
         run: |
