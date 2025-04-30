@@ -1,28 +1,31 @@
+
 FROM python:3.10-slim
 
 WORKDIR /app
 
-COPY raw_data/ ./raw_data/
+# First, we'll copy just what we need from the api directory
+COPY api/requirements.txt /app/api/
+COPY api/tests_unitaires/ /app/api/tests_unitaires/
+COPY api/main.py /app/api/
+COPY api/endpoint/ /app/api/endpoint/
+COPY api/data/ /app/api/data/
+COPY api/utils/ /app/api/utils/
+COPY api/static/ /app/api/static/
 
+# Then copy the raw_data directory
+COPY raw_data/ /app/raw_data/
+
+# Set the working directory to the api folder
 WORKDIR /app/api
 
-# Copier les fichiers nécessaires
-COPY app/api/requirements.txt .
-COPY app/api/tests_unitaires/ ./tests_unitaires/
-COPY app/api/main.py .
-COPY app/api/endpoint/ ./endpoint/
-COPY app/api/data/ ./data/
-COPY app/api/utils/ ./utils/
-COPY app/api/static/ ./static/
-
-# Installer les dépendances
+# Install dependencies
 RUN apt-get update && apt-get install -y build-essential
 RUN pip install -r requirements.txt
 RUN pip install pytest pytest-cov
 
-# Variables d'environnement pour les tests
+# Set environment variables for tests
 ENV PYTHONPATH=/app
 ENV MLFLOW_TRACKING_URI=http://fake-mlflow:5000
 
-# Ajouter une commande de nettoyage du cache python avant les tests
+# Run the tests
 CMD PYTHONPATH=/app pytest -vv tests_unitaires/
