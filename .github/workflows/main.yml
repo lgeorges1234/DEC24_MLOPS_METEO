@@ -107,7 +107,22 @@ jobs:
           
       - name: Copy deployment files
         run: |
-          rsync -av --exclude='.git' ./app/ ~/weather-app-deployment/
+          # rsync -av --exclude='.git' ./app/ ~/weather-app-deployment/
+              # Copy only the app directory with sudo to avoid permission issues
+          sudo cp -r ./app/* ~/weather-app-deployment/
+          
+          # Set proper ownership for the entire deployment directory
+          sudo chown -R ubuntu:ubuntu ~/weather-app-deployment
+          
+          # Ensure directories have execute permissions
+          sudo find ~/weather-app-deployment -type d -exec chmod 755 {} \;
+          
+          # Ensure files have read/write permissions
+          sudo find ~/weather-app-deployment -type f -exec chmod 644 {} \;
+          
+          # Debug directory structure
+          echo "Contents of deployment directory:"
+          ls -la ~/weather-app-deployment/
           
       - name: Pull Docker images
         run: |
