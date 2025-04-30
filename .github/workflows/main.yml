@@ -37,6 +37,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Clean up disk space
+        run: |
+          # Display initial disk space
+          echo "Initial disk space:"
+          df -h
+          
+          # Remove unnecessary large packages
+          sudo apt-get remove --purge -y '^ghc-.*' '^dotnet-.*' '^llvm-.*' '^mono-.*' '^ruby.*' '^postgres.*'
+          sudo apt-get remove --purge -y '^r-.*'
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          
+          # Clean Docker images and containers
+          docker stop $(docker ps -a -q) || true
+          docker rm $(docker ps -a -q) || true
+          docker rmi $(docker images -a -q) --force || true
+          docker volume rm $(docker volume ls -q) || true
+          docker system prune -af
+          
+          # Display available space after cleanup
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Build test Docker image
         run: |
           docker build -t weather-app-tests -f app/api/Dockerfile.test .
@@ -56,6 +79,8 @@ jobs:
           fi
 
   deploy:
+    name: Deploy Weather App
+    needs: test
     runs-on: [self-hosted, weather-app]
     environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
