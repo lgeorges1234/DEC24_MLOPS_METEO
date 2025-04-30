@@ -103,7 +103,7 @@ jobs:
           
       - name: Copy deployment files
         run: |
-          rsync -av --exclude='.git' ./ ~/weather-app-deployment/
+          rsync -av --exclude='.git' ./app/ ~/weather-app-deployment/
           
       - name: Pull Docker images
         run: |
