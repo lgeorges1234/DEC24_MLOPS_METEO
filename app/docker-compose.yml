@@ -253,6 +253,8 @@ services:
     environment:
       - API_URL=http://app:8000
       - AIRFLOW_URL=http://airflow-webserver:8080
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_LOGGER_LEVEL=debug
     depends_on:
       - app
 

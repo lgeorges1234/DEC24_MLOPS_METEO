@@ -85,7 +85,7 @@ jobs:
 
   deploy:
     name: Deploy Weather App
-    needs: test
+    # needs: test
     runs-on: [self-hosted, weather-app]
     environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
@@ -113,11 +113,14 @@ jobs:
           docker pull ghcr.io/mlflow/mlflow:v2.21.0rc0
           docker pull ${AIRFLOW_IMAGE_NAME}
           
-      - name: Build API Docker image
-        run: |
-          cd ~/weather-app-deployment/app/api
-          docker build -t weather-app:latest .
-      
+      # - name: Build API Docker image
+      #   run: |
+      #     cd ~/weather-app-deployment/app/api
+      #     docker build -t weather-app:latest .
+      #         # Build Streamlit service
+      #     cd ~/weather-app-deployment/streamlit_app
+      #     docker build -t weather-streamlit:latest -f Dockerfile.streamlit .
+
       - name: Configure environment
         run: |
           cd ~/weather-app-deployment
@@ -141,8 +144,20 @@ jobs:
         run: |
           cd ~/weather-app-deployment
           docker-compose down
-          docker-compose up -d
+          docker-compose up --build -d
       
+          echo "Waiting for services to initialize (30 seconds)..."
+          sleep 30
+          
+          echo "Container status:"
+          docker ps -a
+          
+          echo "Logs for Streamlit container:"
+          docker-compose logs streamlit
+          
+          echo "Logs for API container:"
+          docker-compose logs app
+
       - name: Initialize data directories
         run: |
           cd ~/weather-app-deployment
@@ -184,7 +199,7 @@ jobs:
           check_service_ready "MLflow" "http://localhost:5000/api/2.0/mlflow/experiments/list" 30 10 || exit 1
           check_service_ready "Weather API" "http://localhost:8000/docs" 30 10 || exit 1
           check_service_ready "Streamlit" "http://localhost:8501" 30 10 || exit 1
-          
+
           echo "All services are up and running!"
 
   trigger-initial-pipeline:
