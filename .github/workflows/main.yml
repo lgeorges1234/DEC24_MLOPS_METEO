@@ -183,6 +183,7 @@ jobs:
           check_service_ready "Airflow" "http://localhost:8080/health" 30 10 || exit 1
           check_service_ready "MLflow" "http://localhost:5000/api/2.0/mlflow/experiments/list" 30 10 || exit 1
           check_service_ready "Weather API" "http://localhost:8000/docs" 30 10 || exit 1
+          check_service_ready "Streamlit" "http://localhost:8501" 30 10 || exit 1
           
           echo "All services are up and running!"
 
