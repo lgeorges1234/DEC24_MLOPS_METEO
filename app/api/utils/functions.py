@@ -6,6 +6,7 @@ Version optimisée avec tracking MLflow simplifié
 
 from pathlib import Path
 from datetime import datetime
+import time
 import logging
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
@@ -20,7 +21,7 @@ import mlflow
 from mlflow.models.signature import infer_signature
 import mlflow.sklearn
 
-from utils.mlflow_config import setup_mlflow, MODEL_NAME
+from utils.mlflow_config import MLFLOW_MAX_RETRIES, MLFLOW_REGISTRY_URI, MLFLOW_RETRY_DELAY, setup_mlflow, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -489,68 +490,109 @@ def evaluate_model():
 def predict_weather(user_input = None):
     """
     Prediction on new data with MLflow tracking.
-    Modifiée pour utiliser les alias au lieu des stages.
+    Modified to use exclusively MLflow registry models.
     """
     try:
         # Tag the current step
         mlflow.set_tag("current_step", "prediction")
+        
+        # Set up MLflow with both tracking and registry URIs
+        setup_mlflow()
+        
         feature_order = joblib.load(MODEL_PATH / "feature_order.joblib")
         
-        # Try to load the model from MLflow using the champion alias
-        try:
-            # Get the model version with the "champion" alias
-            client = mlflow.tracking.MlflowClient()
-            model_name = MODEL_NAME
-            
-            # Get the model version using the champion alias
-            champion_version = client.get_model_version_by_alias(model_name, "champion")
-            
-            if champion_version:
-                mlflow.set_tag("model_source", f"MLflow Registry - champion alias")
-                mlflow.set_tag("model_version", champion_version.version)
-                
-                # Load the model from MLflow using the alias
+        # Load model from MLflow with retry logic - no fallback
+        client = mlflow.tracking.MlflowClient()
+        model_name = MODEL_NAME
+        
+        # Get the model version using the champion alias with retry logic
+        champion_version = None
+        for attempt in range(MLFLOW_MAX_RETRIES):
+            try:
+                champion_version = client.get_model_version_by_alias(model_name, "champion")
+                if champion_version:
+                    logger.info(f"Found champion model version: {champion_version.version}")
+                    break
+                else:
+                    logger.warning(f"No champion model found for {model_name}, attempt {attempt+1}/{MLFLOW_MAX_RETRIES}")
+                    if attempt < MLFLOW_MAX_RETRIES - 1:
+                        time.sleep(MLFLOW_RETRY_DELAY)
+            except Exception as e:
+                logger.warning(f"Error getting champion model version, attempt {attempt+1}/{MLFLOW_MAX_RETRIES}: {str(e)}")
+                if attempt < MLFLOW_MAX_RETRIES - 1:
+                    time.sleep(MLFLOW_RETRY_DELAY)
+                else:
+                    raise ValueError(f"Failed to get champion model version after {MLFLOW_MAX_RETRIES} attempts: {str(e)}")
+        
+        if not champion_version:
+            raise ValueError(f"No champion model found for {model_name} after {MLFLOW_MAX_RETRIES} attempts")
+        
+        # Set tags
+        mlflow.set_tag("model_source", f"MLflow Registry")
+        mlflow.set_tag("model_version", champion_version.version)
+        
+        # Load the model with retry
+        model = None
+        for attempt in range(MLFLOW_MAX_RETRIES):
+            try:
+                logger.info(f"Loading model from MLflow registry (attempt {attempt+1}/{MLFLOW_MAX_RETRIES})")
                 model_uri = f"models:/{model_name}@champion"
                 model = mlflow.sklearn.load_model(model_uri)
-                
-                # Load the scaler separately
-                scaler = joblib.load(MODEL_PATH / "scaler.joblib")
-            else:
-                raise ValueError("No champion model found in registry")
+                logger.info(f"Successfully loaded model from MLflow registry")
+                break
+            except Exception as e:
+                logger.warning(f"Error loading model, attempt {attempt+1}/{MLFLOW_MAX_RETRIES}: {str(e)}")
+                if attempt < MLFLOW_MAX_RETRIES - 1:
+                    time.sleep(MLFLOW_RETRY_DELAY)
+                else:
+                    raise ValueError(f"Failed to load model after {MLFLOW_MAX_RETRIES} attempts: {str(e)}")
         
-        except Exception as e:
-            logger.warning(f"Failed to load champion model from MLflow: {str(e)}. Using local files.")
-            mlflow.set_tag("model_source", "Local files")
+        # Load the scaler - still using local file for now
+        scaler = joblib.load(MODEL_PATH / "scaler.joblib")
+        
+        # # Determine input source
+        # if user_input is not None:
+        #     logger.info("Preparing user input data")
+        #     # User input prediction
+        #     mlflow.set_tag("prediction_type", "user_input")
+        #     input_df, _, _ = extract_and_prepare_df(
+        #         PREDICTION_RAW_DATA_PATH, 
+        #         csv_file_daily_prediction,
+        #         user_input=user_input,
+        #         log_to_mlflow=True
+        #     )
+        #     input_df = input_df.reindex(columns=feature_order)
+        #     logger.info(f"Prepared input DataFrame: {input_df.shape}")
+        # else:
+        #     # Input file for prediction
+        #     mlflow.set_tag("prediction_type", "file_based")
+        #     input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
+        #     mlflow.set_tag("prediction_input_file", str(input_file))
             
-            model = joblib.load(MODEL_PATH / "rfc.joblib")
-            scaler = joblib.load(MODEL_PATH / "scaler.joblib")
-        
-        # Determine input source
-        if user_input is not None:
-            logger.info("Preparing user input data")
-            # User input prediction
-            mlflow.set_tag("prediction_type", "user_input")
-            input_df, _, _ = extract_and_prepare_df(
-                PREDICTION_RAW_DATA_PATH, 
-                csv_file_daily_prediction,
-                user_input=user_input,
-                log_to_mlflow=True
-            )
-            input_df = input_df.reindex(columns=feature_order)
-            logger.info(f"Prepared input DataFrame: {input_df}")
-        else:
-            # Input file for prediction
-            mlflow.set_tag("prediction_type", "file_based")
-            input_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
-            mlflow.set_tag("prediction_input_file", str(input_file))
-            logger.info(f"prediction input file: {input_file}")
+        #     # Log file details
+        #     file_size = os.path.getsize(input_file) if os.path.exists(input_file) else 0
+        #     file_mtime = datetime.fromtimestamp(os.path.getmtime(input_file)).strftime('%Y-%m-%d %H:%M:%S') if os.path.exists(input_file) else "unknown"
+        #     logger.info(f"Using prediction file: {input_file} (size: {file_size}, modified: {file_mtime})")
 
-            # Prepare the data (with minimal logging)
-            input_df, _, _ = extract_and_prepare_df(
-                PREDICTION_RAW_DATA_PATH, 
-                csv_file_daily_prediction,
-                log_to_mlflow=False  # Disable detailed logging for prediction preparation
-            )
+        #     # Prepare the data
+        #     input_df, _, _ = extract_and_prepare_df(
+        #         PREDICTION_RAW_DATA_PATH, 
+        #         csv_file_daily_prediction,
+        #         log_to_mlflow=False
+        #     )
+        #     logger.info(f"Prepared input DataFrame: {input_df.shape}")
+
+        logger.info("Preparing user input data")
+        # User input prediction
+        mlflow.set_tag("prediction_type", "user_input")
+        input_df, _, _ = extract_and_prepare_df(
+            PREDICTION_RAW_DATA_PATH, 
+            csv_file_daily_prediction,
+            user_input=user_input,
+            log_to_mlflow=True
+        )
+        input_df = input_df.reindex(columns=feature_order)
+        logger.info(f"Prepared input DataFrame: {input_df.shape}")
 
         # Remove "RainTomorrow" column before prediction
         if "RainTomorrow" in input_df.columns:
@@ -559,11 +601,14 @@ def predict_weather(user_input = None):
         # Standardize the data
         input_scaled = scaler.transform(input_df)
 
-        # Prediction
-        prediction = model.predict(input_df)[0]
+        # Make prediction using scaled data for BOTH prediction and probability
+        prediction = model.predict(input_scaled)[0]
         probability = model.predict_proba(input_scaled)[0][1]
         
-        # Log only essential prediction results
+        # Log detailed prediction information
+        logger.info(f"Raw prediction: {prediction}, probability: {probability}")
+        
+        # Log prediction results
         mlflow.log_metric("prediction_result", int(prediction))
         mlflow.log_metric("prediction_probability", float(probability))
         mlflow.set_tag("prediction_label", "Yes" if prediction == 1 else "No")

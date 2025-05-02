@@ -178,3 +178,127 @@ def process_daily_prediction_row(**context):
         "rows_after": len(remaining_rows),
         "row_removed": True
     }
+
+import hashlib
+import json
+import pandas as pd
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+def calculate_current_prediction_hash(**context):
+    """
+    Calculate a hash of the current daily prediction file if it exists.
+    This hash will be compared later to verify the data has changed.
+    """
+    from config import PREDICTION_RAW_DATA_PATH
+    
+    daily_file = PREDICTION_RAW_DATA_PATH / 'daily_row_prediction.csv'
+    
+    # Default hash value if file doesn't exist
+    file_hash = "no_file"
+    row_data = {}
+    
+    if daily_file.exists():
+        try:
+            # Read the file
+            df = pd.read_csv(daily_file)
+            
+            if not df.empty:
+                # Convert first row to dictionary for hashing
+                row_data = df.iloc[0].to_dict()
+                
+                # Create a JSON string and hash it
+                row_json = json.dumps(row_data, sort_keys=True)
+                file_hash = hashlib.md5(row_json.encode()).hexdigest()
+                
+                logger.info(f"Calculated hash of existing daily prediction file: {file_hash}")
+            else:
+                logger.warning("Daily prediction file exists but is empty")
+                file_hash = "empty_file"
+        except Exception as e:
+            logger.error(f"Error reading current daily prediction file: {str(e)}")
+            file_hash = f"error_{str(e)}"
+    else:
+        logger.info("No existing daily prediction file found")
+    
+    # Push the hash and data to XCom for later comparison
+    ti = context['ti']
+    ti.xcom_push(key='daily_prediction_hash_before', value=file_hash)
+    ti.xcom_push(key='daily_prediction_data_before', value=row_data)
+    
+    return {
+        "hash": file_hash,
+        "status": "computed" if file_hash not in ["no_file", "empty_file"] else "no_valid_file",
+        "file": str(daily_file)
+    }
+
+def verify_prediction_data_changed(**context):
+    """
+    Verify that the daily prediction data has changed after processing.
+    This ensures we're not using stale data for prediction.
+    """
+    from config import PREDICTION_RAW_DATA_PATH
+    
+    # Get the hash from before processing
+    ti = context['ti']
+    hash_before = ti.xcom_pull(key='daily_prediction_hash_before')
+    data_before = ti.xcom_pull(key='daily_prediction_data_before')
+    
+    # Get processing results
+    process_result = ti.xcom_pull(task_ids='data_preparation.process_daily_prediction_row')
+    
+    daily_file = PREDICTION_RAW_DATA_PATH / 'daily_row_prediction.csv'
+    
+    if not daily_file.exists():
+        raise FileNotFoundError(f"Daily prediction file not found after processing: {daily_file}")
+    
+    # Calculate new hash
+    try:
+        df = pd.read_csv(daily_file)
+        
+        if df.empty:
+            raise ValueError("Processed daily prediction file is empty")
+        
+        # Convert first row to dictionary for hashing
+        row_data = df.iloc[0].to_dict()
+        
+        # Create a JSON string and hash it
+        row_json = json.dumps(row_data, sort_keys=True)
+        hash_after = hashlib.md5(row_json.encode()).hexdigest()
+        
+        logger.info(f"Hash before processing: {hash_before}")
+        logger.info(f"Hash after processing: {hash_after}")
+        
+        # Check if the hash has changed (unless there was no file before)
+        if hash_before not in ["no_file", "empty_file"] and hash_before == hash_after:
+            logger.error("Daily prediction data has not changed after processing!")
+            logger.error(f"Before: {data_before}")
+            logger.error(f"After: {row_data}")
+            raise ValueError("Daily prediction data has not changed - cannot proceed with prediction using stale data")
+        
+        logger.info("Confirmed daily prediction data has changed")
+        
+        # Add the date for additional verification
+        date_info = None
+        if 'Date' in df.columns:
+            date_info = df['Date'].iloc[0]
+        
+        # Also verify against the process_result if available
+        if process_result and 'date' in process_result:
+            process_date = process_result['date']
+            if date_info and date_info != process_date:
+                logger.warning(f"Date mismatch: File has {date_info} but process reported {process_date}")
+        
+        return {
+            "verification_status": "success",
+            "hash_before": hash_before,
+            "hash_after": hash_after,
+            "hash_changed": hash_before != hash_after or hash_before in ["no_file", "empty_file"],
+            "data_date": date_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error verifying daily prediction data change: {str(e)}")
+        raise

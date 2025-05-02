@@ -9,12 +9,13 @@ from datetime import datetime
 from http.client import HTTPException
 import logging
 import mlflow
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, ValidationError, Field, validator
 from utils.mlflow_config import setup_mlflow
 from utils.mlflow_run_manager import get_deployment_run
-from utils.functions import predict_weather
+from utils.functions import PREDICTION_RAW_DATA_PATH, predict_weather, csv_file_daily_prediction
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,17 +31,58 @@ class PredictionRequest(BaseModel):
 @router.get("/predict")
 async def automatic_predict():
     """
-    Endpoint for inference.
-    Creates a new prediction run under the current model deployment run.
+    Endpoint for inference that relies solely on MLflow for model retrieval.
+    Uses the same data feeding approach as the manual prediction endpoint.
     """
     try:
         # Initialize response variables
         status = "success"
         message = "Daily prediction successfully completed"
         
+        # Set up MLflow with both tracking and registry URIs
+        try:
+            setup_mlflow()
+            logger.info(f"MLflow connection check successful")
+        except Exception as e:
+            error_msg = f"Failed to connect to MLflow server: {str(e)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=503, detail=error_msg)
+            
+        # Verify daily prediction file exists
+        prediction_file = PREDICTION_RAW_DATA_PATH / csv_file_daily_prediction
+        if not prediction_file.exists():
+            raise FileNotFoundError(f"Prediction file not found: {prediction_file}")
+            
+        # Read the file content and convert to dictionary (similar to user input)
+        try:
+            df = pd.read_csv(prediction_file)
+            if df.empty:
+                raise ValueError("Daily prediction file is empty")
+                
+            # Remove the target column if it exists (to match manual prediction behavior)
+            if 'RainTomorrow' in df.columns:
+                logger.info("Removing RainTomorrow target column from input data")
+                df = df.drop(columns=['RainTomorrow'])
+            
+            # Extract the first row as a dictionary to use as input
+            row_data = df.iloc[0].to_dict()
+            logger.info(f"Daily prediction row extracted: {row_data}")
+            
+            # Create a hash of the data for tracking changes
+            data_hash = hash(str(row_data))
+            logger.info(f"Daily prediction data hash: {data_hash}")
+        except Exception as e:
+            logger.error(f"Error reading prediction file: {str(e)}")
+            raise
+            
         # Get deployment run for the current model
-        # This function already calls setup_mlflow() internally
-        deployment_run_id, model_version = get_deployment_run()
+        try:
+            deployment_run_id, model_version = get_deployment_run()
+            logger.info(f"Using model version {model_version} with deployment run {deployment_run_id}")
+        except Exception as e:
+            error_msg = f"Failed to get deployment run: {str(e)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
         
         # Create a nested run for this specific prediction
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -54,9 +96,22 @@ async def automatic_predict():
                 mlflow.set_tag("prediction_date", timestamp)
                 mlflow.set_tag("endpoint", "predict_api")
                 mlflow.set_tag("model_version", str(model_version))
+                mlflow.set_tag("data_hash", str(data_hash))
                 
-                # Execute the prediction
-                prediction, probability = predict_weather()
+                # Log input data
+                for key, value in row_data.items():
+                    try:
+                        # Convert to appropriate type and log as parameter
+                        if pd.isna(value):
+                            param_value = "NA"
+                        else:
+                            param_value = str(value)
+                        mlflow.log_param(key, param_value)
+                    except Exception as e:
+                        logger.warning(f"Could not log parameter {key}: {str(e)}")
+                
+                # Execute the prediction with the row data as input (just like user input)
+                prediction, probability = predict_weather(user_input=row_data)
                 
                 return {
                     "status": status,
@@ -65,7 +120,8 @@ async def automatic_predict():
                     "deployment_run_id": deployment_run_id,
                     "model_version": model_version,
                     "prediction": prediction,
-                    "probability": probability
+                    "probability": probability,
+                    "input_data_hash": str(data_hash)
                 }
                 
     except Exception as e:

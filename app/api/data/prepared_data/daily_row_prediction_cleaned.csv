@@ -1,2 +1,2 @@
 Location,MinTemp,MaxTemp,WindGustDir,WindGustSpeed,WindDir9am,WindDir3pm,WindSpeed9am,WindSpeed3pm,Humidity9am,Humidity3pm,Pressure3pm,Cloud9am,Cloud3pm,RainToday,Evaporation,Sunshine
-5,10.0,25.0,180.0,30.0,180.0,180.0,15.0,25.0,70.0,50.0,1013.0,3.0,5.0,,0.0,0.0
+6,10.0,25.0,180.0,30.0,180.0,180.0,15.0,25.0,70.0,50.0,1013.0,3.0,5.0,,0.0,0.0
