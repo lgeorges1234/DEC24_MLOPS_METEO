@@ -1,6 +1,17 @@
 import pandas as pd
 from pathlib import Path
 from config import INITIAL_DATA_PATH, TRAINING_RAW_DATA_PATH, PREDICTION_RAW_DATA_PATH
+import os
+import logging
+
+# Configure logging (if not already configured elsewhere)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
 
 def split_initial_dataset(**context):
     """Split the initial dataset into training (2/3) and prediction (1/3) sets"""

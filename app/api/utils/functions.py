@@ -397,7 +397,7 @@ def train_model():
 def evaluate_model():
     """
     Évaluation du modèle avec suivi MLflow.
-    Logique de promotion simplifiée: comparer uniquement les scores F1.
+    Utilise les alias pour désigner le modèle champion au lieu des stages dépréciés.
     """
     try:
         # We assume we're already in an MLflow run context
@@ -417,83 +417,67 @@ def evaluate_model():
         X_test_scaled = scaler.transform(X_test)
 
         # Predictions
-        y_test_pred = model.predict(X_test)
+        y_test_pred = model.predict(X_test_scaled)
         
-        # Log essential evaluation metrics
-        test_f1 = metrics.f1_score(y_test, y_test_pred)
-        mlflow.log_metric("eval_f1", test_f1)
+        # Calculate and log accuracy score for evaluation
+        test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
+        mlflow.log_metric("eval_accuracy", test_accuracy)
         
         # Save metrics
         metrics_file = METRICS_DATA_PATH / "metrics.json"
         with open(metrics_file, "w") as f:
-            json.dump({"f1_score": float(test_f1)}, f, indent=4)
+            json.dump({"accuracy_score": float(test_accuracy)}, f, indent=4)
         
         mlflow.log_artifact(str(metrics_file))
         
-        # Simplified model promotion logic
+        # Model promotion logic based on accuracy using aliases
         try:
             client = mlflow.tracking.MlflowClient()
             
             # Get the current model version
             all_versions = client.search_model_versions(f"name='{MODEL_NAME}'")
             latest_version = sorted(all_versions, key=lambda x: int(x.version), reverse=True)[0]
-            current_performance = test_f1  # Current model's F1 score
+            current_version = latest_version.version
+            current_performance = test_accuracy  # Current model's accuracy score
             
-            # Find if there's a model in Production
-            production_models = [v for v in all_versions if v.current_stage == "Production"]
-            
-            if not production_models:
-                # No Production model yet - always promote the first model
-                client.transition_model_version_stage(
-                    name=MODEL_NAME,
-                    version=latest_version.version,
-                    stage="Production"
-                )
-                mlflow.set_tag("model_promotion", "First model promoted to Production")
-                logger.info(f"Model version {latest_version.version} promoted to Production")
-            else:
-                # There's already a Production model - compare F1 scores
-                prod_version = production_models[0]
-                prod_run = client.get_run(prod_version.run_id)
+            # Try to find if there's a model with the "champion" alias
+            try:
+                champion_version = client.get_model_version_by_alias(MODEL_NAME, "champion")
+                champion_run = client.get_run(champion_version.run_id)
                 
-                # Get production model F1 score (check both possible metric names)
-                if "eval_f1" in prod_run.data.metrics:
-                    prod_performance = prod_run.data.metrics["eval_f1"]
-                elif "test_f1" in prod_run.data.metrics:
-                    prod_performance = prod_run.data.metrics["test_f1"]
+                # Get champion model accuracy score (check both possible metric names)
+                if "eval_accuracy" in champion_run.data.metrics:
+                    champion_performance = champion_run.data.metrics["eval_accuracy"]
+                elif "test_accuracy" in champion_run.data.metrics:
+                    champion_performance = champion_run.data.metrics["test_accuracy"]
                 else:
-                    logger.warning("Production model has no F1 score metric")
-                    return {"f1_score": float(test_f1)}
+                    logger.warning("Champion model has no accuracy score metric")
+                    champion_performance = 0
                 
-                # Simple comparison - promote only if better
-                if current_performance > prod_performance:
-                    # Archive old model
-                    client.transition_model_version_stage(
-                        name=MODEL_NAME,
-                        version=prod_version.version,
-                        stage="Archived"
-                    )
+                # Promote if accuracy is greater than or equal to current champion model
+                if current_performance >= champion_performance:
+                    # Set the current model version as the new "champion"
+                    client.set_registered_model_alias(MODEL_NAME, "champion", current_version)
                     
-                    # Promote new model
-                    client.transition_model_version_stage(
-                        name=MODEL_NAME,
-                        version=latest_version.version,
-                        stage="Production"
-                    )
-                    
-                    mlflow.set_tag("model_promotion", f"New model promoted to Production (F1: {current_performance:.4f} vs {prod_performance:.4f})")
-                    logger.info(f"Model version {latest_version.version} promoted to Production with improved F1")
+                    mlflow.set_tag("model_promotion", f"New model promoted to champion (Accuracy: {current_performance:.4f} vs {champion_performance:.4f})")
+                    logger.info(f"Model version {current_version} promoted to champion with improved accuracy")
                 else:
                     # No promotion needed
-                    mlflow.set_tag("model_promotion", "Not promoted (no F1 improvement)")
-                    logger.info(f"Model version {latest_version.version} not promoted (F1: {current_performance:.4f} vs {prod_performance:.4f})")
+                    mlflow.set_tag("model_promotion", "Not promoted (no accuracy improvement)")
+                    logger.info(f"Model version {current_version} not promoted (Accuracy: {current_performance:.4f} vs {champion_performance:.4f})")
+            
+            except Exception as e:
+                # No champion model exists yet - always promote the first model
+                client.set_registered_model_alias(MODEL_NAME, "champion", current_version)
+                mlflow.set_tag("model_promotion", "First model assigned as champion")
+                logger.info(f"Model version {current_version} assigned as first champion")
         
         except Exception as e:
-            logger.warning(f"Error during model promotion: {str(e)}")
+            logger.error(f"Error during model promotion: {str(e)}")
             mlflow.set_tag("model_promotion_error", str(e))
         
         mlflow.set_tag("evaluation_status", "COMPLETED")
-        return {"f1_score": float(test_f1)}
+        return {"accuracy_score": float(test_accuracy)}
     
     except Exception as e:
         logger.error(f"Erreur lors de l'évaluation: {str(e)}")
@@ -505,46 +489,43 @@ def evaluate_model():
 def predict_weather(user_input = None):
     """
     Prediction on new data with MLflow tracking.
-    Version optimisée pour un tracking minimal des prédictions.
+    Modifiée pour utiliser les alias au lieu des stages.
     """
     try:
         # Tag the current step
         mlflow.set_tag("current_step", "prediction")
         feature_order = joblib.load(MODEL_PATH / "feature_order.joblib")
         
-        # Try to load the model from MLflow
+        # Try to load the model from MLflow using the champion alias
         try:
-            # Find the most recent model in Production or Staging
+            # Get the model version with the "champion" alias
             client = mlflow.tracking.MlflowClient()
             model_name = MODEL_NAME
             
-            # Find the most recent version in Production or Staging
-            versions = client.search_model_versions(f"name='{model_name}'")
-            production_versions = [mv for mv in versions if mv.current_stage in ["Production", "Staging"]]
+            # Get the model version using the champion alias
+            champion_version = client.get_model_version_by_alias(model_name, "champion")
             
-            if production_versions:
-                # Sort by decreasing version
-                latest_prod = sorted(production_versions, key=lambda x: int(x.version), reverse=True)[0]
-                mlflow.set_tag("model_source", f"MLflow Registry - {latest_prod.current_stage}")
-                mlflow.set_tag("model_version", latest_prod.version)
+            if champion_version:
+                mlflow.set_tag("model_source", f"MLflow Registry - champion alias")
+                mlflow.set_tag("model_version", champion_version.version)
                 
-                # Load the model from MLflow
-                model_uri = f"models:/{model_name}/{latest_prod.current_stage}"
+                # Load the model from MLflow using the alias
+                model_uri = f"models:/{model_name}@champion"
                 model = mlflow.sklearn.load_model(model_uri)
                 
                 # Load the scaler separately
                 scaler = joblib.load(MODEL_PATH / "scaler.joblib")
             else:
-                raise ValueError("No production or staging model found in registry")
+                raise ValueError("No champion model found in registry")
         
         except Exception as e:
-            logger.warning(f"Failed to load from MLflow: {str(e)}. Using local files.")
+            logger.warning(f"Failed to load champion model from MLflow: {str(e)}. Using local files.")
             mlflow.set_tag("model_source", "Local files")
             
             model = joblib.load(MODEL_PATH / "rfc.joblib")
             scaler = joblib.load(MODEL_PATH / "scaler.joblib")
         
-         # Determine input source
+        # Determine input source
         if user_input is not None:
             logger.info("Preparing user input data")
             # User input prediction

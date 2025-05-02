@@ -3,7 +3,7 @@ from airflow.operators.python import PythonOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime
-from airflow.dags.tasks.logs_tasks import log_prediction_row_details
+from tasks.logs_tasks import log_prediction_row_details
 from tasks.data_tasks import process_daily_prediction_row
 from tasks.model_tasks import make_prediction
 from config import (

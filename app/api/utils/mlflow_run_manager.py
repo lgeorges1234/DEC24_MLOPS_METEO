@@ -94,44 +94,31 @@ def complete_workflow_run(run_id, status="COMPLETED", error_message=None):
 
 def get_deployment_run():
     """
-    Get or create a deployment run for the current model version.
+    Get or create a deployment run for the current champion model version.
     Returns the run_id and model_version.
     """
     try:
         # Make sure MLflow is configured
         setup_mlflow()
         
-        # Find the current model in Production or Staging
+        # Find the champion model
         client = mlflow.tracking.MlflowClient()
         
-        # Get all versions of the model
-        versions = client.search_model_versions(f"name='{MODEL_NAME}'")
-
-        # Check if we got any versions
-        if not versions:
-            raise ValueError(f"No versions found for model {MODEL_NAME}")
-
-        logger.debug(f"Found {len(versions)} total versions for model {MODEL_NAME}")
-        for v in versions:
-            logger.debug(f"Version {v.version}: Stage: {v.current_stage}, Run ID: {v.run_id}")
-
-        # First try to find models in Production or Staging
-        production_versions = [mv for mv in versions if mv.current_stage in ["Production", "Staging"]]
-        
-        # If none found, use any available version (including "None" stage)
-        if not production_versions:
-            logger.warning("No Production or Staging models found. Using latest model from any stage.")
-            # Explicitly check that versions list is not empty before sorting
-            if versions:  
-                # Sort by version number to get the latest
-                latest_version = sorted(versions, key=lambda x: int(x.version), reverse=True)[0]
-                model_version = latest_version.version
-            else:
-                raise ValueError(f"No versions found for model {MODEL_NAME} after filtering")
-        else:
-            # Use Production/Staging model if available
-            latest_version = sorted(production_versions, key=lambda x: int(x.version), reverse=True)[0]
+        try:
+            # Get the champion model version
+            champion_version = client.get_model_version_by_alias(MODEL_NAME, "champion")
+            model_version = champion_version.version
+            logger.info(f"Found champion model version: {model_version}")
+        except Exception as e:
+            # If no champion alias exists, use the latest version
+            logger.warning(f"No champion model found: {str(e)}. Using latest version.")
+            versions = client.search_model_versions(f"name='{MODEL_NAME}'")
+            if not versions:
+                raise ValueError(f"No versions found for model {MODEL_NAME}")
+                
+            latest_version = sorted(versions, key=lambda x: int(x.version), reverse=True)[0]
             model_version = latest_version.version
+            logger.info(f"Using latest model version: {model_version}")
         
         # Get the experiment ID
         experiment = mlflow.get_experiment_by_name(DEFAULT_EXPERIMENT_NAME)
