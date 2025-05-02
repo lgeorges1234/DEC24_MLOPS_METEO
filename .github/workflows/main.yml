@@ -107,8 +107,7 @@ jobs:
           
       - name: Copy deployment files
         run: |
-          # rsync -av --exclude='.git' ./app/ ~/weather-app-deployment/
-              # Copy only the app directory with sudo to avoid permission issues
+          # Copy only the app directory with sudo to avoid permission issues
           sudo cp -r ./app/* ~/weather-app-deployment/
           
           # Set proper ownership for the entire deployment directory
@@ -142,6 +141,7 @@ jobs:
           AIRFLOW_GID=${AIRFLOW_GID}
           _AIRFLOW_WWW_USER_USERNAME=${_AIRFLOW_WWW_USER_USERNAME}
           _AIRFLOW_WWW_USER_PASSWORD=${_AIRFLOW_WWW_USER_PASSWORD}
+          AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
           DB_NAME=${DB_NAME}
           DB_USER=${DB_USER}
           DB_PASSWORD=${DB_PASSWORD}
