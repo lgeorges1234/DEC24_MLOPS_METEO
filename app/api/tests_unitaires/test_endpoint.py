@@ -2,62 +2,42 @@
 Tests unitaires pour les endpoints de l'API
 """
 import os
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
+import pytest
 
-# Définir la variable d'environnement TESTING avant d'importer l'application
-os.environ["TESTING"] = "true"
+# Vérifier que le monkey patching est bien effectué par conftest.py
+import mlflow
+print(f"MLflow in test_endpoint: {type(mlflow)}")
+print(f"MLflow has set_registry_uri: {'set_registry_uri' in dir(mlflow)}")
 
-# Importer l'application maintenant que TESTING est défini
+# Importer l'application - devrait utiliser le mock MLflow
 from main import app
 
 # Création du client de test
 client = TestClient(app)
 
-# Fixture pour simuler les fichiers de prédiction
-@pytest.fixture
-def mock_file_operations():
-    with patch('pathlib.Path.exists', return_value=True), \
-         patch('pandas.read_csv', return_value=MagicMock(
-             empty=False,
-             shape=(1, 10),
-             columns=["MinTemp", "MaxTemp", "Location", "RainTomorrow"],
-             iloc=MagicMock(
-                 return_value=MagicMock(
-                     to_dict=lambda: {"MinTemp": 10.0, "MaxTemp": 25.0, "Location": 1}
-                 )
-             )
-         )):
-        yield
-
-# Fixture pour simuler extract_and_prepare_df
-@pytest.fixture
-def mock_extract_and_prepare():
-    with patch('utils.functions.extract_and_prepare_df', return_value=(
-            MagicMock(), # DataFrame mock
-            {}, # encoders mock
-            "/app/api/data/prepared_data/test_output.csv" # Output path
-        )):
-        yield
-
 def test_extract_endpoint():
     """Test de l'endpoint d'extraction"""
-    # Appel de l'endpoint avec un run_id (paramètre obligatoire)
-    response = client.get("/extract?run_id=test_run_id")
-    
-    # Vérifications
-    assert response.status_code == 200
-    assert "status" in response.json()
+    # Patch supplémentaire pour cette fonction spécifique si nécessaire
+    with patch('endpoint.extract_api.setup_mlflow', return_value=None):
+        # Appel de l'endpoint avec un run_id (paramètre obligatoire)
+        response = client.get("/extract?run_id=test_run_id")
+        
+        # Vérifications
+        assert response.status_code == 200
+        assert "status" in response.json()
 
-def test_training_endpoint(mock_extract_and_prepare):
+def test_training_endpoint():
     """Test de l'endpoint d'entraînement"""
-    # Appel de l'endpoint avec un run_id (paramètre obligatoire)
-    response = client.get("/training?run_id=test_run_id")
-    
-    # Vérifications
-    assert response.status_code == 200
-    assert "status" in response.json()
+    # Patch supplémentaire pour cette fonction spécifique si nécessaire
+    with patch('endpoint.training_api.setup_mlflow', return_value=None):
+        # Appel de l'endpoint avec un run_id (paramètre obligatoire)
+        response = client.get("/training?run_id=test_run_id")
+        
+        # Vérifications
+        assert response.status_code == 200
+        assert "status" in response.json()
 
 def test_predict_user_endpoint():
     """Test de l'endpoint de prédiction manuelle"""
@@ -80,8 +60,10 @@ def test_predict_user_endpoint():
         "RainToday": 0
     }
     
-    # Patch spécifique pour predict_weather
-    with patch('utils.functions.predict_weather', return_value=(0, 0.85)):
+    # Patches supplémentaires pour cette fonction spécifique
+    with patch('endpoint.predict_api.setup_mlflow', return_value=None), \
+         patch('endpoint.predict_api.get_deployment_run', return_value=("test_deployment_run", "1")):
+        
         # Appel de l'endpoint
         response = client.post("/predict_user", json=test_data)
         
@@ -89,10 +71,22 @@ def test_predict_user_endpoint():
         assert response.status_code == 200
         assert "prediction" in response.json()
 
-def test_predict_automatic_endpoint(mock_file_operations):
+def test_predict_automatic_endpoint():
     """Test de l'endpoint de prédiction automatique"""
-    # Patch spécifique pour predict_weather
-    with patch('utils.functions.predict_weather', return_value=(0, 0.85)):
+    # Patches supplémentaires pour cette fonction spécifique
+    with patch('endpoint.predict_api.setup_mlflow', return_value=None), \
+         patch('endpoint.predict_api.get_deployment_run', return_value=("test_deployment_run", "1")), \
+         patch('pathlib.Path.exists', return_value=True), \
+         patch('pandas.read_csv', return_value=MagicMock(
+             empty=False, 
+             columns=["MinTemp", "MaxTemp", "Location"],
+             iloc=MagicMock(
+                 return_value=MagicMock(
+                     to_dict=lambda: {"MinTemp": 10.0, "MaxTemp": 25.0, "Location": 1}
+                 )
+             )
+         )):
+        
         # Appel de l'endpoint
         response = client.get("/predict")
         

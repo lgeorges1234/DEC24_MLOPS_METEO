@@ -493,11 +493,6 @@ def predict_weather(user_input = None):
     Modified to use exclusively MLflow registry models.
     """
     try:
-        # Si mode test, retourner des valeurs factices
-        if in_test_mode():
-            logger.info("Test mode detected, returning mock prediction")
-            return 0, 0.85
-            
         # Tag the current step
         mlflow.set_tag("current_step", "prediction")
         

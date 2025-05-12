@@ -1,11 +1,10 @@
 """
 Utility for managing MLflow runs across multiple API endpoints
 """
+import mlflow
 import logging
 from datetime import datetime
-import sys
-import os
-from utils.mlflow_config import setup_mlflow, DEFAULT_EXPERIMENT_NAME, MODEL_NAME, in_test_mode
+from utils.mlflow_config import setup_mlflow, DEFAULT_EXPERIMENT_NAME, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -14,16 +13,8 @@ def start_workflow_run(workflow_name="weather_prediction_workflow"):
     Starts a new workflow run that will span multiple endpoints.
     Returns the run_id that can be passed between endpoints.
     """
-    # If in test mode, return a dummy run_id
-    if in_test_mode():
-        logger.info("Test mode detected, returning dummy workflow run_id")
-        return "test_workflow_run_id"
-    
     # Make sure MLflow is configured
     setup_mlflow()
-    
-    # Import mlflow here to avoid errors in test mode
-    import mlflow
     
     # End any active run (shouldn't be needed but as a safety)
     if mlflow.active_run():
@@ -54,24 +45,8 @@ def continue_workflow_run(run_id, step_name):
     Returns the run context that should be used in a 'with' statement.
     Ensures any existing run is properly ended first.
     """
-    # If in test mode, return a dummy run context
-    if in_test_mode():
-        logger.info(f"Test mode detected, returning dummy run context for step '{step_name}'")
-        
-        # Create a dummy context manager for test mode
-        class DummyRunContext:
-            def __enter__(self):
-                return self
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                pass
-        
-        return DummyRunContext()
-    
     # Make sure MLflow is configured
     setup_mlflow()
-    
-    # Import mlflow here to avoid errors in test mode
-    import mlflow
     
     # End any active run to avoid nested runs
     active_run = mlflow.active_run()
@@ -103,16 +78,8 @@ def complete_workflow_run(run_id, status="COMPLETED", error_message=None):
         status (str): Status to set (typically "COMPLETED" or "FAILED")
         error_message (str, optional): Error message to log if status is "FAILED"
     """
-    # If in test mode, skip this operation
-    if in_test_mode():
-        logger.info(f"Test mode detected, skipping workflow completion for run {run_id}")
-        return
-    
     # Make sure MLflow is configured
     setup_mlflow()
-    
-    # Import mlflow here to avoid errors in test mode
-    import mlflow
     
     # Resume the existing run
     with mlflow.start_run(run_id=run_id, nested=False):
@@ -131,16 +98,8 @@ def get_deployment_run():
     Returns the run_id and model_version.
     """
     try:
-        # If in test mode, return dummy values
-        if in_test_mode():
-            logger.info("Test mode detected, returning dummy deployment run")
-            return "test_deployment_run_id", "1"
-        
         # Make sure MLflow is configured
         setup_mlflow()
-        
-        # Import mlflow here to avoid errors in test mode
-        import mlflow
         
         # Find the champion model
         client = mlflow.tracking.MlflowClient()
@@ -194,8 +153,4 @@ def get_deployment_run():
     
     except Exception as e:
         logger.error(f"Error creating deployment run: {str(e)}")
-        # If in test mode, return dummy values even on error
-        if in_test_mode():
-            logger.warning(f"Returning dummy deployment run due to error in test mode: {str(e)}")
-            return "test_deployment_run_id", "1"
         raise
