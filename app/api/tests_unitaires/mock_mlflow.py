@@ -87,20 +87,6 @@ class MockTracking(MockBase):
                 )
             )]
             return mock_runs
-        
-        def get_model_version_by_alias(self, name, alias):
-            """Retourne une version de modèle par alias"""
-            mock_model_version = MagicMock(
-                name=name,
-                version="1",
-                run_id="test_run_id"
-            )
-            return mock_model_version
-        
-        def set_registered_model_alias(self, name, alias, version):
-            """Définit l'alias d'une version de modèle"""
-            # Cette méthode peut simplement retourner None dans le mock
-            return None
     
     # Request_header module
     class request_header:
@@ -159,7 +145,6 @@ class MockMLflow(MockBase):
         self.pyfunc = MockPyfunc()
         self.active_run_obj = None
         self._tracking_uri = "http://localhost:5000"
-        self._registry_uri = "http://localhost:5000"  # Ajout du registry_uri
         self._current_experiment_id = "1"
         
         # Créer un client par défaut pour faciliter les tests
@@ -191,15 +176,8 @@ class MockMLflow(MockBase):
     def set_tracking_uri(self, uri):
         self._tracking_uri = uri
         
-    def set_registry_uri(self, uri):
-        """Définit l'URI du registre de modèles - méthode manquante ajoutée"""
-        self._registry_uri = uri
-        
     def get_tracking_uri(self):
         return self._tracking_uri
-    
-    def get_registry_uri(self):
-        return self._registry_uri
         
     def active_run(self):
         return self.active_run_obj
@@ -239,10 +217,6 @@ class MockMLflow(MockBase):
     def log_metrics(self, metrics):
         pass
     
-    def log_artifact(self, local_path, artifact_path=None):
-        """Loggue un artefact - méthode manquante ajoutée"""
-        pass
-    
     def log_artifacts(self, local_dir, artifact_path=None):
         pass
     
@@ -256,7 +230,10 @@ class MockMLflow(MockBase):
         model = MagicMock()
         model.predict = lambda x: [0]
         return model
-        
+    
+    def get_registry_uri(self):
+        return "mock://registry"
+    
     def search_experiments(self, *args, **kwargs):
         return list(self.mock_experiments.values())
     
