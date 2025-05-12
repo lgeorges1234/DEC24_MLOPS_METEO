@@ -178,7 +178,15 @@ class MockMLflow(MockBase):
         
     def get_tracking_uri(self):
         return self._tracking_uri
-        
+    
+    def set_registry_uri(self, uri):
+        """Set MLflow registry URI"""
+        self._registry_uri = uri
+    
+    def get_registry_uri(self):
+        """Get MLflow registry URI"""
+        return self._registry_uri or self._tracking_uri 
+
     def active_run(self):
         return self.active_run_obj
         
