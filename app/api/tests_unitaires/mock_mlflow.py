@@ -4,6 +4,7 @@ Ce module doit être importé avant tout autre module qui utilise MLflow.
 """
 import sys
 import pickle
+import os
 from unittest.mock import MagicMock
 
 # Rendre les MagicMock compatibles avec pickle
@@ -87,6 +88,21 @@ class MockTracking(MockBase):
                 )
             )]
             return mock_runs
+            
+        def get_model_version_by_alias(self, name, alias):
+            """Obtient une version du modèle par son alias"""
+            # Pour les tests, on retourne toujours une version valide
+            return MagicMock(
+                name=name,
+                version="1",
+                current_stage="Production",
+                run_id="test_run_id"
+            )
+            
+        def set_registered_model_alias(self, name, alias, version):
+            """Définit un alias pour une version du modèle"""
+            # Pas besoin d'implémentation spécifique pour les tests
+            pass
     
     # Request_header module
     class request_header:
@@ -145,7 +161,12 @@ class MockMLflow(MockBase):
         self.pyfunc = MockPyfunc()
         self.active_run_obj = None
         self._tracking_uri = "http://localhost:5000"
+        self._registry_uri = "http://localhost:5000"
         self._current_experiment_id = "1"
+        
+        # Configure default environment variables for testing
+        os.environ["MLFLOW_HTTP_REQUEST_MAX_RETRIES"] = "1"
+        os.environ["MLFLOW_HTTP_REQUEST_TIMEOUT"] = "1"
         
         # Créer un client par défaut pour faciliter les tests
         self.client = self.tracking.MlflowClient()
@@ -178,6 +199,12 @@ class MockMLflow(MockBase):
         
     def get_tracking_uri(self):
         return self._tracking_uri
+        
+    def set_registry_uri(self, uri):
+        self._registry_uri = uri
+        
+    def get_registry_uri(self):
+        return self._registry_uri
         
     def active_run(self):
         return self.active_run_obj
@@ -217,6 +244,10 @@ class MockMLflow(MockBase):
     def log_metrics(self, metrics):
         pass
     
+    def log_artifact(self, local_path, artifact_path=None):
+        """Log un artefact - nouvelle méthode requise"""
+        pass
+    
     def log_artifacts(self, local_dir, artifact_path=None):
         pass
     
@@ -229,10 +260,8 @@ class MockMLflow(MockBase):
     def load_model(self, *args, **kwargs):
         model = MagicMock()
         model.predict = lambda x: [0]
+        model.predict_proba = lambda x: [[0.25, 0.75]]
         return model
-    
-    def get_registry_uri(self):
-        return "mock://registry"
     
     def search_experiments(self, *args, **kwargs):
         return list(self.mock_experiments.values())
