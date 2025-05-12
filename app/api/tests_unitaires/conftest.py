@@ -1,93 +1,22 @@
 """
 Configuration des tests avec pytest.
 """
-# IMPORTANT: Ces imports doivent être faits avant tout autre import pour patcher le module mlflow
-import sys
-from unittest.mock import MagicMock
-
-# Créer un mock MLflow complet et le mettre en place AVANT les imports
-class MockMLflow(MagicMock):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._tracking_uri = "http://localhost:5000"
-        self._registry_uri = "http://localhost:5000"
-        
-    def set_tracking_uri(self, uri):
-        self._tracking_uri = uri
-        
-    def set_registry_uri(self, uri):
-        self._registry_uri = uri
-        
-    def get_tracking_uri(self):
-        return self._tracking_uri
-    
-    def get_registry_uri(self):
-        return self._registry_uri
-    
-    def active_run(self):
-        return None
-    
-    def start_run(self, *args, **kwargs):
-        # Créer un contexte simulé pour le with statement
-        class MockRunContext:
-            def __init__(self):
-                self.info = MagicMock(run_id="test_run_id")
-                self.data = MagicMock(tags={}, params={}, metrics={})
-                
-            def __enter__(self):
-                return self
-                
-            def __exit__(self, *args):
-                pass
-        
-        return MockRunContext()
-    
-    def end_run(self):
-        pass
-
-# Créer et installer le mock
-mock_mlflow = MockMLflow()
-mock_mlflow.tracking = MagicMock()
-mock_mlflow.tracking.MlflowClient = MagicMock()
-mock_mlflow.models = MagicMock()
-mock_mlflow.models.signature = MagicMock()
-mock_mlflow.models.signature.infer_signature = MagicMock(return_value=MagicMock())
-mock_mlflow.sklearn = MagicMock()
-mock_mlflow.sklearn.log_model = MagicMock(return_value=MagicMock(model_uri="mock://model/uri"))
-mock_mlflow.sklearn.load_model = MagicMock(return_value=MagicMock(
-    predict=lambda x: [0],
-    predict_proba=lambda x: [[0.25, 0.75]]
-))
-
-# Créer des fonctions pour les méthodes spéciales du client
-class MockClient(MagicMock):
-    def get_model_version_by_alias(self, name, alias):
-        return MagicMock(name=name, version="1", run_id="test_run_id")
-    
-    def set_registered_model_alias(self, name, alias, version):
-        return None
-
-# Configurer le client
-mock_mlflow.tracking.MlflowClient.return_value = MockClient()
-
-# Remplacer le module mlflow dans sys.modules
-sys.modules['mlflow'] = mock_mlflow
-sys.modules['mlflow.tracking'] = mock_mlflow.tracking
-sys.modules['mlflow.models'] = mock_mlflow.models
-sys.modules['mlflow.models.signature'] = mock_mlflow.models.signature
-sys.modules['mlflow.sklearn'] = mock_mlflow.sklearn
-sys.modules['mlflow.pyfunc'] = MagicMock()
-print("MLflow mock installé avec succès au niveau système")
-
-# Maintenant les imports standard peuvent se faire
 import pytest
+from unittest.mock import patch, MagicMock
 import os
+import sys
 import pandas as pd
 import numpy as np
+
+# Import notre module de mock MLflow avant tout autre import
+# Cela assure que tout import de MLflow dans le code utilisera nos mocks
+from tests_unitaires.mock_mlflow import mock_mlflow
 
 @pytest.fixture(autouse=True)
 def check_model_files():
     """Vérifie si les fichiers modèles existent"""
+    import os
+    
     model_dir = "/app/api/data/models"
     if os.path.exists(model_dir):
         print(f"Le répertoire {model_dir} existe")
@@ -181,10 +110,7 @@ def mock_application_functions():
         "RainToday": {1: "Yes", 0: "No"}
     }
     
-    # Patcher directement les fonctions avec unittest.mock.patch
-    from unittest.mock import patch
-    
-    # Patch extrait_and_prepare_df
+    # Mock des fonctions de l'application
     with patch('utils.functions.extract_and_prepare_df', return_value=(
             test_df, # DataFrame avec des classes équilibrées
             test_encoders, # Encodeurs
@@ -195,7 +121,4 @@ def mock_application_functions():
             "metrics_path": "/app/api/data/metrics/test_metrics.json" # Chemin correct
         }), \
         patch('utils.functions.predict_weather', return_value=(0, 0.85)):
-        
-        # Patcher get_deployment_run() est crucial pour predict_user et predict
-        with patch('utils.mlflow_run_manager.get_deployment_run', return_value=("test_deployment_run", "1")):
-            yield
+        yield
