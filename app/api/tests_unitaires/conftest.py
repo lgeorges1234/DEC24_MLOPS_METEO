@@ -44,6 +44,7 @@ def mock_application_functions():
     """
     # Définir des variables d'environnement de test
     os.environ["MLFLOW_TRACKING_URI"] = "http://fake-mlflow:5000"
+    os.environ["MLFLOW_REGISTRY_URI"] = "http://fake-mlflow:5000"
     
     # Créer un DataFrame avec des données équilibrées pour les tests
     rows = []

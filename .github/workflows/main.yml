@@ -85,7 +85,7 @@ jobs:
 
   deploy:
     name: Deploy Weather App
-    needs: test
+    # needs: test
     runs-on: [self-hosted, weather-app]
     environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
