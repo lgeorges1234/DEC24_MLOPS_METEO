@@ -31,7 +31,15 @@ class MockTracking(MockBase):
                     run_id="test_run_id"
                 )
             ]
-            
+        def get_model_version_by_alias(self, name, alias):
+            """Get a model version by alias"""
+            # For testing, just return a mock model version
+            return MagicMock(
+                name=name,
+                version="1",
+                current_stage="Production",
+                run_id="test_run_id"
+            )    
         def get_experiment_by_name(self, name):
             return self.mock_experiments.get(name)
             
