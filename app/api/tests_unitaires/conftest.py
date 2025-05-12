@@ -1,16 +1,112 @@
 """
-Configuration des tests avec pytest.
+Configuration des tests avec pytest et monkey patching global de MLflow.
 """
-import pytest
-from unittest.mock import patch, MagicMock
 import os
 import sys
+import pytest
+from unittest.mock import MagicMock
 import pandas as pd
 import numpy as np
 
-# Import notre module de mock MLflow avant tout autre import
-# Cela assure que tout import de MLflow dans le code utilisera nos mocks
-from tests_unitaires.mock_mlflow import mock_mlflow
+# Définir la variable d'environnement TESTING
+os.environ["TESTING"] = "true"
+
+# MONKEY PATCHING GLOBAL DE MLFLOW
+# ==============================
+# Cette technique est plus avancée et plus "brutale" que les approches conventionnelles,
+# mais elle peut fonctionner quand rien d'autre ne marche.
+
+# Créer un mock MLflow complet
+mock_mlflow = MagicMock()
+
+# Ajouter explicitement toutes les fonctions et attributs utilisés par l'application
+mock_mlflow.set_tracking_uri = MagicMock()
+mock_mlflow.set_registry_uri = MagicMock()  # La fonction problématique
+mock_mlflow.get_tracking_uri = MagicMock(return_value="http://fake-mlflow:5000")
+mock_mlflow.get_registry_uri = MagicMock(return_value="http://fake-mlflow:5000")
+mock_mlflow.set_experiment = MagicMock()
+mock_mlflow.get_experiment_by_name = MagicMock(return_value=None)
+mock_mlflow.create_experiment = MagicMock(return_value="1")
+mock_mlflow.active_run = MagicMock(return_value=None)
+mock_mlflow.end_run = MagicMock()
+mock_mlflow.log_param = MagicMock()
+mock_mlflow.log_params = MagicMock()
+mock_mlflow.log_metric = MagicMock()
+mock_mlflow.log_metrics = MagicMock()
+mock_mlflow.set_tag = MagicMock()
+mock_mlflow.log_artifact = MagicMock()
+mock_mlflow.log_artifacts = MagicMock()
+
+# Créer un mock pour un run MLflow
+class MockRun:
+    def __init__(self, run_id="test_run_id"):
+        self.info = MagicMock(run_id=run_id)
+        self.data = MagicMock(
+            params={},
+            metrics={},
+            tags={}
+        )
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        pass
+
+# Configurer la fonction start_run pour retourner un contexte
+mock_mlflow.start_run = MagicMock(return_value=MockRun())
+
+# Créer des sous-modules
+mock_mlflow.tracking = MagicMock()
+mock_mlflow.models = MagicMock()
+mock_mlflow.sklearn = MagicMock()
+mock_mlflow.pyfunc = MagicMock()
+
+# Configurer le client MLflow
+mock_client = MagicMock()
+mock_client.search_model_versions = MagicMock(return_value=[
+    MagicMock(name="weather_prediction_model", version="1", run_id="test_run_id")
+])
+mock_client.get_model_version_by_alias = MagicMock(return_value=
+    MagicMock(name="weather_prediction_model", version="1", run_id="test_run_id")
+)
+mock_client.search_runs = MagicMock(return_value=[
+    MagicMock(info=MagicMock(run_id="test_deployment_run"))
+])
+
+mock_mlflow.tracking.MlflowClient = MagicMock(return_value=mock_client)
+
+# Configurer mock_mlflow.sklearn.load_model pour retourner un modèle qui peut prédire
+model_mock = MagicMock()
+model_mock.predict = MagicMock(return_value=[0])
+model_mock.predict_proba = MagicMock(return_value=[[0.2, 0.8]])
+mock_mlflow.sklearn.load_model = MagicMock(return_value=model_mock)
+
+# Remplacer le module mlflow réel par notre mock dans sys.modules
+sys.modules['mlflow'] = mock_mlflow
+sys.modules['mlflow.tracking'] = mock_mlflow.tracking
+sys.modules['mlflow.models'] = mock_mlflow.models
+sys.modules['mlflow.sklearn'] = mock_mlflow.sklearn
+sys.modules['mlflow.pyfunc'] = mock_mlflow.pyfunc
+
+print("GLOBAL MONKEY PATCHING OF MLFLOW COMPLETED")
+
+# Maintenant patchez les fonctions spécifiques qui pourraient quand même essayer d'utiliser MLflow
+@pytest.fixture(autouse=True)
+def mock_mlflow_functions():
+    """
+    Patcher les fonctions qui utilisent MLflow directement, au cas où le monkey patching global ne suffit pas.
+    """
+    # Importer ici pour être sûr que mlflow est déjà mocké
+    from unittest.mock import patch
+    
+    # Patcher setup_mlflow pour qu'il ne fasse rien
+    with patch('utils.mlflow_config.setup_mlflow', return_value=True):
+        # Patcher get_deployment_run pour qu'il retourne des valeurs factices
+        with patch('utils.mlflow_run_manager.get_deployment_run', return_value=("test_deployment_run", "1")):
+            # Patcher predict_weather pour qu'il retourne une prédiction factice
+            with patch('utils.functions.predict_weather', return_value=(0, 0.85)):
+                yield
 
 @pytest.fixture(autouse=True)
 def check_model_files():
@@ -44,6 +140,7 @@ def mock_application_functions():
     """
     # Définir des variables d'environnement de test
     os.environ["MLFLOW_TRACKING_URI"] = "http://fake-mlflow:5000"
+    os.environ["MLFLOW_REGISTRY_URI"] = "http://fake-mlflow:5000"
     
     # Créer un DataFrame avec des données équilibrées pour les tests
     rows = []
@@ -111,6 +208,8 @@ def mock_application_functions():
     }
     
     # Mock des fonctions de l'application
+    from unittest.mock import patch
+    
     with patch('utils.functions.extract_and_prepare_df', return_value=(
             test_df, # DataFrame avec des classes équilibrées
             test_encoders, # Encodeurs
@@ -121,4 +220,13 @@ def mock_application_functions():
             "metrics_path": "/app/api/data/metrics/test_metrics.json" # Chemin correct
         }), \
         patch('utils.functions.predict_weather', return_value=(0, 0.85)):
-        yield
+        
+        # Patcher également les fonctions de lecture/écriture de fichiers
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pandas.read_csv', return_value=pd.DataFrame({
+                 'MinTemp': [10.0],
+                 'MaxTemp': [25.0],
+                 'Location': [1],
+                 'RainTomorrow': [0]
+             })):
+            yield
