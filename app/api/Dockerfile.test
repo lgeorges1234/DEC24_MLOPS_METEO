@@ -25,6 +25,7 @@ RUN pip install pytest pytest-cov
 # Set environment variables for tests
 ENV PYTHONPATH=/app
 ENV MLFLOW_TRACKING_URI=http://fake-mlflow:5000
+ENV MLFLOW_REGISTRY_URI=http://fake-mlflow:5000
 
 # Run the tests
 CMD PYTHONPATH=/app pytest -vv tests_unitaires/
