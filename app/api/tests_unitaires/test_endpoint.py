@@ -5,6 +5,43 @@ from fastapi.testclient import TestClient
 from main import app
 from unittest.mock import patch, MagicMock
 import pandas as pd
+import os
+import numpy as np
+import joblib
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+
+# Setup function that runs before any tests
+def setup_module():
+    """Prepare test environment"""
+    # Create fitted models for testing
+    model_dir = "/app/api/data/models"
+    os.makedirs(model_dir, exist_ok=True)
+    
+    # Create sample data
+    X = np.random.rand(100, 16)
+    y = np.random.randint(0, 2, 100)
+    
+    # Create and fit a random forest model
+    rfc = RandomForestClassifier(n_estimators=5, max_depth=3, random_state=42)
+    rfc.fit(X, y)
+    
+    # Create and fit a scaler
+    scaler = StandardScaler()
+    scaler.fit(X)
+    
+    # Feature order
+    feature_order = [
+        'MinTemp', 'MaxTemp', 'Rainfall', 'WindGustSpeed', 'WindSpeed9am', 
+        'WindSpeed3pm', 'Humidity9am', 'Humidity3pm', 'Pressure3pm',
+        'Cloud9am', 'Cloud3pm', 'Location_encoded', 'WindGustDir_encoded',
+        'WindDir9am_encoded', 'WindDir3pm_encoded', 'RainToday_encoded'
+    ]
+    
+    # Save models
+    joblib.dump(rfc, os.path.join(model_dir, "rfc.joblib"))
+    joblib.dump(scaler, os.path.join(model_dir, "scaler.joblib"))
+    joblib.dump(feature_order, os.path.join(model_dir, "feature_order.joblib"))
 
 # Assurer que notre mock MLflow est chargé
 import tests_unitaires.mock_mlflow
