@@ -7,7 +7,6 @@ COPY app/api/requirements.txt /app/api/
 COPY app/api/tests_unitaires/ /app/api/tests_unitaires/
 COPY app/api/main.py /app/api/
 COPY app/api/endpoint/ /app/api/endpoint/
-COPY app/api/data/ /app/api/data/
 COPY app/api/utils/ /app/api/utils/
 COPY app/api/static/ /app/api/static/
 
@@ -22,9 +21,20 @@ RUN apt-get update && apt-get install -y build-essential
 RUN pip install -r requirements.txt
 RUN pip install pytest pytest-cov
 
+# Create necessary directories
+RUN mkdir -p /app/api/data/models
+RUN mkdir -p /app/api/data/prepared_data
+RUN mkdir -p /app/api/data/metrics
+RUN mkdir -p /app/raw_data/prediction_raw_data
+RUN mkdir -p /app/raw_data/training_raw_data
+
 # Set environment variables for tests
 ENV PYTHONPATH=/app
 ENV MLFLOW_TRACKING_URI=http://fake-mlflow:5000
+ENV MLFLOW_REGISTRY_URI=http://fake-mlflow:5000
+ENV MLFLOW_MAX_RETRIES=1
+ENV MLFLOW_RETRY_DELAY=0
+ENV MLFLOW_REQUEST_TIMEOUT=1
 
 # Run the tests
 CMD PYTHONPATH=/app pytest -vv tests_unitaires/
