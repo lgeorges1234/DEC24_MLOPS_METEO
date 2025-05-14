@@ -202,45 +202,47 @@ jobs:
           echo "All services are up and running!"
 
   trigger-initial-pipeline:
-    needs: deploy
-    runs-on: [self-hosted, weather-app]
-    steps:
-      - name: Unpause DAGs and trigger initial workflow
-        run: |
-          # Wait for Airflow to fully initialize
-          echo "Waiting 30 seconds for Airflow to fully initialize..."
-          sleep 30
-          
-          # Specific DAGs we need to unpause and trigger
-          DAGS=("1_weather_initial_split_dag" "2_weather_training_dag" "3_weather_prediction_dag")
-          
-          # Unpause each DAG using the official Airflow REST API
-          for dag_id in "${DAGS[@]}"; do
-            echo "Unpausing DAG: $dag_id"
-            curl -X PATCH "http://localhost:8080/api/v1/dags/$dag_id" \
+      needs: deploy
+      runs-on: [self-hosted, weather-app]
+      steps:
+        - name: Unpause DAGs and trigger initial workflow
+          run: |
+            # Wait for Airflow to fully initialize
+            echo "Waiting 30 seconds for Airflow to fully initialize..."
+            sleep 30
+            
+            # Specific DAGs we need to unpause and trigger
+            DAGS=("1_weather_initial_split_dag" "2_weather_training_dag" "3_weather_prediction_dag")
+            
+            # Unpause each DAG using the official Airflow REST API
+            for dag_id in "${DAGS[@]}"; do
+              echo "Unpausing DAG: $dag_id"
+              curl -X PATCH "http://localhost:8080/api/v1/dags/$dag_id" \
+                -H "Content-Type: application/json" \
+                -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" \
+                -d '{"is_paused": false}'
+              
+              # Small delay between API calls
+              sleep 2
+            done
+            
+            # Verify DAG status - simple check without Python parsing
+            echo "Verifying DAG status (simplified):"
+            for dag_id in "${DAGS[@]}"; do
+              echo "Checking status of DAG: $dag_id"
+              # Use grep to check if is_paused is false instead of Python
+              curl -s "http://localhost:8080/api/v1/dags/$dag_id" \
+                -H "Content-Type: application/json" \
+                -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" | \
+                grep -o '"is_paused": false' && echo "DAG $dag_id is unpaused!" || echo "WARNING: DAG $dag_id might still be paused"
+            done
+            
+            # Trigger the initial split DAG
+            echo "Triggering the initial split DAG..."
+            TRIGGER_RESPONSE=$(curl -s -X POST "http://localhost:8080/api/v1/dags/1_weather_initial_split_dag/dagRuns" \
               -H "Content-Type: application/json" \
               -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" \
-              -d '{"is_paused": false}'
-            
-            # Small delay between API calls
-            sleep 2
-          done
-          
-          # Verify DAG status
-          echo "Verifying DAG status:"
-          for dag_id in "${DAGS[@]}"; do
-            echo "Checking status of DAG: $dag_id"
-            curl -s "http://localhost:8080/api/v1/dags/$dag_id" \
-              -H "Content-Type: application/json" \
-              -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" | \
-              python -c "import json, sys; data=json.load(sys.stdin); print(f\"DAG: {data['dag_id']} - Paused: {data['is_paused']}\")"
-          done
-          
-          # Trigger the initial split DAG
-          echo "Triggering the initial split DAG..."
-          curl -X POST "http://localhost:8080/api/v1/dags/1_weather_initial_split_dag/dagRuns" \
-            -H "Content-Type: application/json" \
-            -u "${_AIRFLOW_WWW_USER_USERNAME}:${_AIRFLOW_WWW_USER_PASSWORD}" \
-            -d '{"conf": {}}'
-          
-          echo "Initial pipeline successfully unpaused and triggered"
+              -d '{"conf": {}}')
+              
+            # Check if the trigger was successful using grep instead of Python
+            echo "$TRIGGER_RESPONSE" | grep -o '"dag_run_id"' && echo "Initial pipeline successfully triggered!" || echo "Warning: DAG trigger might have failed. Response: $TRIGGER_RESPONSE"
