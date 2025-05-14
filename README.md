@@ -8,49 +8,9 @@ This MLOps system is designed to predict whether it will rain tomorrow based on 
 
 ## Architecture Diagram
 
-```mermaid
-graph TD
-    subgraph Infrastructure
-        DC[Docker Compose] --> |orchestrates| CONT[Containers]
-        GHA[GitHub Actions] --> |deploys| DC
-    end
-    
-    subgraph Data Flow
-        WD[Weather Data] --> |split| DS[Data Splitter]
-        DS --> TR[Training Data]
-        DS --> PR[Prediction Data]
-        TR --> |weekly training| MT[Model Training]
-        PR --> |daily prediction| MP[Model Prediction]
-    end
-    
-    subgraph Services
-        AF[Airflow] --> |orchestrates| DAG1[Initial Split DAG]
-        AF --> |orchestrates| DAG2[Training DAG]
-        AF --> |orchestrates| DAG3[Prediction DAG]
-        API[FastAPI Service] --> |exposes| EP1[Extract Endpoint]
-        API --> |exposes| EP2[Training Endpoint]
-        API --> |exposes| EP3[Prediction Endpoint]
-        MLF[MLflow] --> |tracks| EXP[Experiments]
-        MLF --> |stores| REG[Model Registry]
-        ST[Streamlit] --> |displays| UI[Weather UI]
-    end
-    
-    subgraph Monitoring
-        MLF --> |monitors| MT
-        MLF --> |monitors| MP
-        AF --> |logs| LOG[Execution Logs]
-    end
-    
-    DAG1 --> DS
-    DAG2 --> MT
-    DAG3 --> MP
-    MT --> |registers model| REG
-    MP --> |loads model| REG
-    EP1 --> |preprocessing| TR
-    EP2 --> |handles| MT
-    EP3 --> |serves| MP
-    MP --> |displays results| UI
-```
+![Weather Prediction MLOps Architecture](./reports/figures/Meteo_MLOPS_diagram.drawio.svg)
+
+*The diagram above shows the complete architecture of the Weather Prediction MLOps system, including the data flow, services integration, and monitoring components.*
 
 ## Directory Structure
 
