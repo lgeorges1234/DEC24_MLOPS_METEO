@@ -10,7 +10,7 @@ This MLOps system is designed to predict whether it will rain tomorrow based on 
 
 ![Weather Prediction MLOps Architecture](./reports/figures/Meteo_MLOPS_diagram.drawio.svg)
 
-*The diagram above shows the complete architecture of the Weather Prediction MLOps system, including the data flow, services integration, and monitoring components.*
+*The diagram above shows the complete architecture of the Weather Prediction MLOps system, including the data flow, services integration, and inference process.*
 
 ## Directory Structure
 
