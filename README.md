@@ -1,6 +1,7 @@
 # Weather Prediction MLOps System
 
 A comprehensive MLOps platform for daily rain prediction using Australian weather data, demonstrating a production-grade machine learning pipeline.
+Preuver MAJ
 
 ## Project Overview
 
