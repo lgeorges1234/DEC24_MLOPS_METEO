@@ -145,6 +145,7 @@ jobs:
           DB_USER=${DB_USER}
           DB_PASSWORD=${DB_PASSWORD}
           DB_SECRET_KEY=${DB_SECRET_KEY}
+          AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
           EOF
           
           # Update SMTP password in docker-compose

@@ -16,6 +16,8 @@ This MLOps system is designed to predict whether it will rain tomorrow based on 
 
 ```
 DEC24_MLOPS_METEO/
+├── .github/                     # Github folder
+│   ├── workflows/               # Pipeline configuration and definition
 ├── app/                         # Application code and Docker configuration
 │   ├── airflow/                 # Airflow DAG definitions and configuration
 │   ├── api/                     # FastAPI application for model serving
