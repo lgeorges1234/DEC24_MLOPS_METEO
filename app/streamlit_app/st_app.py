@@ -154,7 +154,7 @@ def run():
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"## {config.PROMOTION}")
 
-    st.sidebar.markdown("### Team members:")
+    st.sidebar.markdown("### Team members tt:")
     for member in config.TEAM_MEMBERS:
         st.sidebar.markdown(member.sidebar_markdown(), unsafe_allow_html=True)
 
