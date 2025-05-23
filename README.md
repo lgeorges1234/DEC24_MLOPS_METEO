@@ -6,6 +6,7 @@ A comprehensive MLOps platform for daily rain prediction using Australian weathe
 
 This MLOps system is designed to predict whether it will rain tomorrow based on meteorological data. The project implements a complete machine learning lifecycle including data preparation, model training, automated retraining, and prediction serving through multiple interfaces.
 
+
 ## Architecture Diagram
 
 ![Weather Prediction MLOps Architecture](./reports/figures/Meteo_MLOPS_diagram.drawio.svg)
